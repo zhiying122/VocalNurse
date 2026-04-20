@@ -1,0 +1,16 @@
+# 環境變數（含 API key，絕對不能推上去）
+.env
+brain/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 暫存音檔
+*.wav
+*.mp3
+*.m4a
+temp_*
