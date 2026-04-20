@@ -1,5 +1,5 @@
 """
-LLM 客戶端：支援 Ollama 本地（主）、Gemini、OpenAI
+LLM 客戶端：支援 Ollama 本地（主）、Gemini、OpenAI（備援）
 """
 import json
 import os
@@ -13,11 +13,28 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 
 def _extract_json(text: str) -> dict:
     """從 LLM 回應中提取 JSON，處理可能的 markdown code block"""
-    # 移除 ```json ... ``` 包裝
     text = re.sub(r"```json\s*", "", text)
     text = re.sub(r"```\s*", "", text)
     text = text.strip()
     return json.loads(text)
+
+
+def call_ollama(system_prompt: str, user_prompt: str) -> dict:
+    from langchain_ollama import ChatOllama
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    llm = ChatOllama(
+        model=model,
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        temperature=0.1,
+    )
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt),
+    ]
+    response = llm.invoke(messages)
+    return _extract_json(response.content)
 
 
 def call_gemini(system_prompt: str, user_prompt: str) -> dict:
@@ -27,7 +44,7 @@ def call_gemini(system_prompt: str, user_prompt: str) -> dict:
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
         google_api_key=os.getenv("GEMINI_API_KEY"),
-        temperature=0.1,  # 低溫確保輸出穩定
+        temperature=0.1,
     )
     messages = [
         SystemMessage(content=system_prompt),
@@ -56,16 +73,18 @@ def call_openai(system_prompt: str, user_prompt: str) -> dict:
 
 def call_llm(system_prompt: str, user_prompt: str) -> dict:
     """
-    主入口：優先使用設定的 provider，失敗時自動備援
+    主入口：依 LLM_PROVIDER 決定順序，失敗自動備援
+    ollama（預設）→ gemini → openai
     """
-    providers = (
-        [call_gemini, call_openai]
-        if LLM_PROVIDER == "gemini"
-        else [call_openai, call_gemini]
-    )
+    if LLM_PROVIDER == "gemini":
+        order = [call_gemini, call_ollama, call_openai]
+    elif LLM_PROVIDER == "openai":
+        order = [call_openai, call_ollama, call_gemini]
+    else:  # ollama（預設）
+        order = [call_ollama, call_gemini, call_openai]
 
     last_error = None
-    for provider_fn in providers:
+    for provider_fn in order:
         try:
             return provider_fn(system_prompt, user_prompt)
         except Exception as e:
