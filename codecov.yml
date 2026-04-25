@@ -1,0 +1,74 @@
+# Codecov Configuration for VoiceNursy
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 2%
+        if_ci_failed: error
+    
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+        if_ci_failed: error
+
+# Ignore paths
+ignore:
+  - "backend/tests/**/*"
+  - "backend/alembic/**/*"
+  - "backend/app/migrations/**/*"
+  - "frontend/__tests__/**/*"
+  - "frontend/__mocks__/**/*"
+  - "frontend/coverage/**/*"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.test.js"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/*.spec.js"
+
+# Coverage flags for different test types
+flags:
+  backend-unit:
+    paths:
+      - backend/app/
+    carryforward: true
+  
+  backend-property:
+    paths:
+      - backend/app/
+    carryforward: true
+  
+  backend-integration:
+    paths:
+      - backend/app/
+    carryforward: true
+  
+  frontend-unit:
+    paths:
+      - frontend/src/
+    carryforward: true
+  
+  frontend-property:
+    paths:
+      - frontend/src/
+    carryforward: true
+
+# Comment on pull requests
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# GitHub checks
+github_checks:
+  annotations: true
