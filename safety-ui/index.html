@@ -9,98 +9,104 @@
 </head>
 <body>
     <div id="app">
-        <!-- ===== 登入畫面 ===== -->
+        <!-- 登入/註冊 -->
         <div id="login-screen" class="screen">
             <div class="login-container">
                 <div class="login-logo">🏥</div>
                 <h1>VoiceNursy</h1>
                 <p class="login-subtitle">護理聲助手 — 隱形的 AI 護理長</p>
-
-                <!-- 登入表單 -->
                 <div id="login-form" class="login-form">
-                    <div class="form-group">
-                        <label>員工編號</label>
-                        <input type="text" id="login-id" placeholder="請輸入員工編號">
-                    </div>
-                    <div class="form-group">
-                        <label>密碼</label>
-                        <input type="password" id="login-pw" placeholder="請輸入密碼">
-                    </div>
+                    <div class="form-group"><label>員工編號</label><input type="text" id="login-id" placeholder="請輸入員工編號"></div>
+                    <div class="form-group"><label>密碼</label><input type="password" id="login-pw" placeholder="請輸入密碼"></div>
                     <p id="login-error" class="form-error"></p>
                     <button class="btn btn-primary btn-large" onclick="doLogin()">登入系統</button>
                     <p class="form-switch">還沒有帳號？<a href="#" onclick="showRegister()">立即註冊</a></p>
                 </div>
-
-                <!-- 註冊表單 -->
                 <div id="register-form" class="login-form hidden">
-                    <div class="form-group">
-                        <label>員工編號</label>
-                        <input type="text" id="reg-id" placeholder="例：N20240001">
-                    </div>
-                    <div class="form-group">
-                        <label>姓名</label>
-                        <input type="text" id="reg-name" placeholder="請輸入真實姓名">
-                    </div>
-                    <div class="form-group">
-                        <label>密碼</label>
-                        <input type="password" id="reg-pw" placeholder="請設定密碼">
-                    </div>
+                    <div class="form-group"><label>員工編號</label><input type="text" id="reg-id" placeholder="例：N001"></div>
+                    <div class="form-group"><label>姓名</label><input type="text" id="reg-name" placeholder="請輸入姓名"></div>
+                    <div class="form-group"><label>密碼</label><input type="password" id="reg-pw" placeholder="請設定密碼"></div>
                     <p id="reg-error" class="form-error"></p>
                     <button class="btn btn-primary btn-large" onclick="doRegister()">註冊帳號</button>
                     <p class="form-switch">已有帳號？<a href="#" onclick="showLogin()">返回登入</a></p>
                 </div>
-
-                <p class="login-hint">⚠ 請先啟動後端：python -m uvicorn api:app --port 8001</p>
+                <p class="login-hint">⚠ 請先啟動後端：cd brain → python -m uvicorn api:app --reload --port 8001</p>
             </div>
         </div>
 
-        <!-- ===== 主畫面 ===== -->
+        <!-- 主畫面 -->
         <div id="main-screen" class="screen hidden">
-            <!-- 頂部導航 -->
             <header class="header">
-                <div class="header-left">
-                    <h1>🏥 VoiceNursy</h1>
-                </div>
+                <div class="header-left"><h1>🏥 VoiceNursy</h1></div>
                 <nav class="header-nav">
                     <button class="nav-btn active" data-tab="patrol" onclick="switchTab('patrol')">🚶 巡房模式</button>
                     <button class="nav-btn" data-tab="handover" onclick="switchTab('handover')">📊 交班儀表板</button>
                 </nav>
                 <div class="header-right">
-                    <span id="current-nurse">護理師：王小明</span>
+                    <span id="current-nurse"></span>
                     <span id="current-shift" class="shift-badge">日班</span>
                     <span id="network-status" class="net-online">🟢 線上</span>
                     <button class="btn btn-small btn-outline" onclick="doLogout()">登出</button>
                 </div>
             </header>
 
-            <!-- ===== 巡房模式 ===== -->
+            <!-- 巡房模式 -->
             <div id="tab-patrol" class="tab-content">
-                <!-- 病患選擇列 -->
                 <div class="patient-bar">
-                    <h3>負責病患</h3>
-                    <div class="patient-list" id="patient-list"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <h3>負責病患</h3>
+                        <button class="btn btn-small btn-primary" onclick="showAddPatient()">＋ 新增病患</button>
+                    </div>
+                    <div class="patient-list" id="patient-list">
+                        <p style="color:#999;font-size:.85rem">尚無病患，請點「新增病患」</p>
+                    </div>
                 </div>
 
-                <!-- 當前病患資訊 -->
-                <div class="patient-info" id="patient-info">
+                <!-- 新增病患表單 -->
+                <div id="add-patient-form" class="add-patient-form hidden">
+                    <h3>新增病患</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>姓名</label><input type="text" id="pt-name" placeholder="王大明"></div>
+                        <div class="form-group"><label>床號</label><input type="text" id="pt-bed" placeholder="3A-01"></div>
+                        <div class="form-group"><label>年齡</label><input type="number" id="pt-age" placeholder="72"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2"><label>診斷</label><input type="text" id="pt-dx" placeholder="右膝關節置換術後 Day 2"></div>
+                        <div class="form-group"><label>過敏藥物（逗號分隔）</label><input type="text" id="pt-allergies" placeholder="Penicillin, Aspirin"></div>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <button class="btn btn-primary" onclick="submitPatient()">確認新增</button>
+                        <button class="btn btn-secondary" onclick="hideAddPatient()">取消</button>
+                    </div>
+                </div>
+
+                <!-- 病患資訊 -->
+                <div id="patient-info" class="patient-info hidden">
                     <span id="patient-name" class="patient-name-tag"></span>
                     <span id="patient-bed" class="patient-bed-tag"></span>
                     <span id="patient-dx" class="patient-dx-tag"></span>
+                    <button class="btn btn-small btn-outline" style="margin-left:auto;color:#c62828;border-color:#c62828" onclick="removePatient()">移除</button>
                 </div>
 
-                <main class="main-content">
-                    <!-- 左側：語音輸入 + SOAP -->
+                <main class="main-content" id="main-area" style="display:none">
                     <section class="soap-section">
-                        <!-- 語音錄音區 -->
+                        <!-- 錄音區：點一下開始，再點一下停止 -->
                         <div class="voice-area">
-                            <button id="record-btn" class="record-btn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()">
+                            <button id="record-btn" class="record-btn" onclick="toggleRecording()">
                                 <span class="record-icon" id="record-icon">🎙️</span>
-                                <span id="record-label">按住說話</span>
+                                <span id="record-label">點擊開始錄音</span>
                             </button>
                             <div id="recording-indicator" class="recording-indicator hidden">
                                 <div class="pulse-ring"></div>
-                                <span>錄音中... <span id="record-timer">0s</span></span>
+                                <span>錄音中... <span id="record-timer">0s</span>（再點一下停止）</span>
                             </div>
+
+                            <!-- 一站式模式開關 -->
+                            <div class="mode-toggle">
+                                <label><input type="checkbox" id="auto-mode" checked> 一站式模式（錄音完自動生成 SOAP）</label>
+                            </div>
+
+                            <!-- 轉錄結果 -->
                             <div id="transcript-area" class="transcript-area hidden">
                                 <label>語音辨識結果：</label>
                                 <textarea id="transcript-text" rows="2"></textarea>
@@ -109,7 +115,7 @@
                                     <button class="btn btn-secondary" onclick="clearTranscript()">清除</button>
                                 </div>
                             </div>
-                            <!-- 手動輸入備用 -->
+
                             <details class="manual-input">
                                 <summary>或手動輸入文字</summary>
                                 <textarea id="manual-text" rows="2" placeholder="直接輸入文字..."></textarea>
@@ -117,85 +123,50 @@
                             </details>
                         </div>
 
-                        <!-- 處理中動畫 -->
-                        <div id="processing" class="processing hidden">
-                            <div class="spinner"></div>
-                            <span>AI 正在分析中...</span>
-                        </div>
+                        <div id="processing" class="processing hidden"><div class="spinner"></div><span>AI 正在分析中...</span></div>
 
                         <!-- SOAP 卡片 -->
                         <div id="soap-cards" class="soap-cards hidden">
-                            <div class="soap-card soap-s">
-                                <div class="soap-label">S 主觀</div>
-                                <div id="soap-s" class="soap-content" contenteditable="true"></div>
-                            </div>
-                            <div class="soap-card soap-o">
-                                <div class="soap-label">O 客觀</div>
-                                <div id="soap-o" class="soap-content" contenteditable="true"></div>
-                            </div>
-                            <div class="soap-card soap-a">
-                                <div class="soap-label">A 評估</div>
-                                <div id="soap-a" class="soap-content" contenteditable="true"></div>
-                            </div>
-                            <div class="soap-card soap-p">
-                                <div class="soap-label">P 計畫</div>
-                                <div id="soap-p" class="soap-content" contenteditable="true"></div>
-                            </div>
-                            <div id="med-section" class="med-section hidden">
-                                <h3>💊 藥物</h3>
-                                <div id="med-list"></div>
-                            </div>
-                            <div id="pain-section" class="pain-section hidden">
-                                <h3>😣 疼痛指數</h3>
-                                <div id="pain-display"></div>
-                            </div>
-                            <div class="confirm-area">
-                                <button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button>
-                            </div>
+                            <div class="soap-card soap-s"><div class="soap-label">S 主觀</div><div id="soap-s" class="soap-content" contenteditable="true"></div></div>
+                            <div class="soap-card soap-o"><div class="soap-label">O 客觀</div><div id="soap-o" class="soap-content" contenteditable="true"></div></div>
+                            <div class="soap-card soap-a"><div class="soap-label">A 評估</div><div id="soap-a" class="soap-content" contenteditable="true"></div></div>
+                            <div class="soap-card soap-p"><div class="soap-label">P 計畫</div><div id="soap-p" class="soap-content" contenteditable="true"></div></div>
+                            <div id="med-section" class="med-section hidden"><h3>💊 藥物</h3><div id="med-list"></div></div>
+                            <div id="pain-section" class="pain-section hidden"><h3>😣 疼痛指數</h3><div id="pain-display"></div></div>
+                            <div class="confirm-area"><button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button></div>
                         </div>
 
-                        <!-- 存檔動畫 -->
-                        <div id="save-ok" class="save-ok hidden">
-                            <div class="checkmark-circle"><span>✓</span></div>
-                            <p>病歷已成功歸檔</p>
-                        </div>
+                        <div id="save-ok" class="save-ok hidden"><div class="checkmark-circle"><span>✓</span></div><p>病歷已成功歸檔</p></div>
                     </section>
 
-                    <!-- 右側：即時資訊 -->
                     <section class="side-panel">
-                        <div class="mini-chart">
-                            <h3>疼痛趨勢</h3>
-                            <canvas id="pain-chart"></canvas>
-                        </div>
-                        <div class="timeline-panel">
-                            <h3>今日紀錄</h3>
-                            <div id="timeline"></div>
-                        </div>
+                        <div class="mini-chart"><h3>疼痛趨勢</h3><canvas id="pain-chart"></canvas></div>
+                        <div class="timeline-panel"><h3>今日紀錄</h3><div id="timeline"></div></div>
                     </section>
                 </main>
             </div>
 
-            <!-- ===== 交班儀表板 ===== -->
+            <!-- 交班儀表板 -->
             <div id="tab-handover" class="tab-content hidden">
                 <div class="handover-grid">
                     <div class="handover-summary">
-                        <h2>📋 交班摘要 — <span id="handover-shift">日班 07:00-15:00</span></h2>
+                        <h2>📋 交班摘要</h2>
                         <div class="summary-stats">
-                            <div class="stat-card"><div class="stat-num" id="stat-patients">3</div><div class="stat-label">負責病患</div></div>
+                            <div class="stat-card"><div class="stat-num" id="stat-patients">0</div><div class="stat-label">負責病患</div></div>
                             <div class="stat-card stat-alert"><div class="stat-num" id="stat-alerts">0</div><div class="stat-label">警示次數</div></div>
                             <div class="stat-card"><div class="stat-num" id="stat-records">0</div><div class="stat-label">SOAP 紀錄</div></div>
                         </div>
                     </div>
-                    <div id="handover-patients" class="handover-patients"></div>
+                    <div id="handover-patients"></div>
                 </div>
             </div>
         </div>
 
-        <!-- ===== 警示覆蓋層 ===== -->
+        <!-- 警示 -->
         <div id="alert-overlay" class="alert-overlay hidden">
             <div class="alert-box">
                 <div class="alert-icon">⚠️</div>
-                <h2>劑量異常警示</h2>
+                <h2 id="alert-title">劑量異常警示</h2>
                 <p id="alert-msg"></p>
                 <div class="alert-detail">
                     <div><small>偵測值</small><strong id="alert-val"></strong></div>

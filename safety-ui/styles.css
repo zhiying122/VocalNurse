@@ -172,3 +172,16 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .form-switch{text-align:center;margin-top:12px;font-size:.85rem;color:#666}
 .form-switch a{color:#2d3a8c;font-weight:600;text-decoration:none}
 .form-switch a:hover{text-decoration:underline}
+
+/* ── 新增病患表單 ── */
+.add-patient-form{background:#fff;padding:16px 24px;border-bottom:1px solid #e0e0e0}
+.add-patient-form h3{font-size:1rem;color:#2d3a8c;margin-bottom:12px}
+.form-row{display:flex;gap:12px;margin-bottom:12px}
+.form-row .form-group{flex:1}
+.form-row .form-group label{display:block;font-size:.8rem;color:#666;margin-bottom:2px}
+.form-row .form-group input{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:.9rem}
+
+/* ── 模式切換 ── */
+.mode-toggle{margin-top:12px;font-size:.85rem;color:#666}
+.mode-toggle label{cursor:pointer}
+.mode-toggle input{margin-right:4px}

@@ -1,18 +1,26 @@
 """
-真實的註冊/登入系統（JSON 檔案儲存，不需要資料庫）
+真實的註冊/登入系統（JSON 檔案儲存）
+使用 hashlib 取代 bcrypt，避免 Python 3.14 相容性問題
 """
 import json
 import os
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
 from jose import jwt
 
 SECRET_KEY = "voicenursy-secret-key-change-in-production"
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_HOURS = 8  # 一個班次
+TOKEN_EXPIRE_HOURS = 8
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+
+
+def _hash_password(password: str, salt: str = None) -> tuple[str, str]:
+    if salt is None:
+        salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+    return hashed, salt
 
 
 def _load_users() -> dict:
@@ -32,10 +40,12 @@ def register(employee_id: str, password: str, name: str, role: str = "nurse") ->
     if employee_id in users:
         return {"success": False, "message": "此員工編號已註冊"}
 
+    hashed, salt = _hash_password(password)
     users[employee_id] = {
         "name": name,
         "role": role,
-        "password_hash": pwd_context.hash(password),
+        "password_hash": hashed,
+        "salt": salt,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     _save_users(users)
@@ -47,7 +57,9 @@ def login(employee_id: str, password: str) -> dict:
     user = users.get(employee_id)
     if not user:
         return {"success": False, "message": "員工編號不存在"}
-    if not pwd_context.verify(password, user["password_hash"]):
+
+    hashed, _ = _hash_password(password, user["salt"])
+    if hashed != user["password_hash"]:
         return {"success": False, "message": "密碼錯誤"}
 
     token = jwt.encode(
@@ -69,7 +81,6 @@ def login(employee_id: str, password: str) -> dict:
 
 def verify_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         return None
