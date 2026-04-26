@@ -15,18 +15,42 @@
                 <div class="login-logo">🏥</div>
                 <h1>VoiceNursy</h1>
                 <p class="login-subtitle">護理聲助手 — 隱形的 AI 護理長</p>
-                <div class="login-form">
+
+                <!-- 登入表單 -->
+                <div id="login-form" class="login-form">
                     <div class="form-group">
                         <label>員工編號</label>
-                        <input type="text" id="login-id" value="N20240001" placeholder="請輸入員工編號">
+                        <input type="text" id="login-id" placeholder="請輸入員工編號">
                     </div>
                     <div class="form-group">
                         <label>密碼</label>
-                        <input type="password" id="login-pw" value="demo1234" placeholder="請輸入密碼">
+                        <input type="password" id="login-pw" placeholder="請輸入密碼">
                     </div>
+                    <p id="login-error" class="form-error"></p>
                     <button class="btn btn-primary btn-large" onclick="doLogin()">登入系統</button>
+                    <p class="form-switch">還沒有帳號？<a href="#" onclick="showRegister()">立即註冊</a></p>
                 </div>
-                <p class="login-hint">Demo 帳號已預填，直接點登入即可</p>
+
+                <!-- 註冊表單 -->
+                <div id="register-form" class="login-form hidden">
+                    <div class="form-group">
+                        <label>員工編號</label>
+                        <input type="text" id="reg-id" placeholder="例：N20240001">
+                    </div>
+                    <div class="form-group">
+                        <label>姓名</label>
+                        <input type="text" id="reg-name" placeholder="請輸入真實姓名">
+                    </div>
+                    <div class="form-group">
+                        <label>密碼</label>
+                        <input type="password" id="reg-pw" placeholder="請設定密碼">
+                    </div>
+                    <p id="reg-error" class="form-error"></p>
+                    <button class="btn btn-primary btn-large" onclick="doRegister()">註冊帳號</button>
+                    <p class="form-switch">已有帳號？<a href="#" onclick="showLogin()">返回登入</a></p>
+                </div>
+
+                <p class="login-hint">⚠ 請先啟動後端：python -m uvicorn api:app --port 8001</p>
             </div>
         </div>
 

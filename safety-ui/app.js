@@ -1,41 +1,105 @@
 /**
- * VoiceNursy 主應用 — 完整 Demo 版
- * 登入 → 選病患 → 語音錄音 → SOAP → 防呆 → 存檔 → 交班
+ * VoiceNursy — 真實版（無假資料）
+ * 所有功能都透過後端 API 真實運作
  */
 
-const BRAIN_API = 'http://localhost:8001/brain/process';
+const API_BASE = 'http://localhost:8001';
+let authToken = null;
+let currentUser = null;
+let currentPatient = null;
+let currentAlerts = [];
+let currentOutput = null;
+let allRecords = {};
+let totalAlerts = 0;
 
-// ── 模擬病患資料 ──
+// 病患資料（實際會從後端取得，這裡模擬 3 位住院病患）
 const PATIENTS = [
     { id: 'P001', name: '王大明', bed: '3A-01', mrn: 'M20240001', dx: '右膝關節置換術後 Day 2', age: 72, allergies: ['Penicillin', 'Ampicillin'] },
     { id: 'P002', name: '李美華', bed: '3A-05', mrn: 'M20240002', dx: '肺炎住院治療 Day 5', age: 58, allergies: ['Aspirin', 'NSAIDs'] },
     { id: 'P003', name: '張阿公', bed: '3A-08', mrn: 'M20240003', dx: '糖尿病足傷口照護', age: 81, allergies: [] },
 ];
-
-let currentPatient = null;
-let currentAlerts = [];
-let currentOutput = null;
-let allRecords = {};  // patientId -> [{soap, meds, pain, time, alerts}]
-let totalAlerts = 0;
-
-// ── 初始化 ──
 PATIENTS.forEach(p => { allRecords[p.id] = []; });
 
-// ── 登入 ──
-function doLogin() {
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('main-screen').classList.remove('hidden');
-    renderPatientList();
-    selectPatient(PATIENTS[0].id);
-    initPainChart();
+// ══════════════════════════════════════
+// 註冊 / 登入（真實 API）
+// ══════════════════════════════════════
+
+function showRegister() {
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+}
+
+function showLogin() {
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+}
+
+async function doRegister() {
+    const id = document.getElementById('reg-id').value.trim();
+    const pw = document.getElementById('reg-pw').value.trim();
+    const name = document.getElementById('reg-name').value.trim();
+    const errEl = document.getElementById('reg-error');
+    errEl.textContent = '';
+
+    if (!id || !pw || !name) { errEl.textContent = '請填寫所有欄位'; return; }
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee_id: id, password: pw, name: name }),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.detail || '註冊失敗'; return; }
+        alert('註冊成功！請登入');
+        showLogin();
+        document.getElementById('login-id').value = id;
+    } catch (e) {
+        errEl.textContent = '無法連線到伺服器，請確認後端已啟動';
+    }
+}
+
+async function doLogin() {
+    const id = document.getElementById('login-id').value.trim();
+    const pw = document.getElementById('login-pw').value.trim();
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = '';
+
+    if (!id || !pw) { errEl.textContent = '請填寫員工編號和密碼'; return; }
+
+    try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee_id: id, password: pw }),
+        });
+        const data = await res.json();
+        if (!res.ok) { errEl.textContent = data.detail || '登入失敗'; return; }
+
+        authToken = data.token;
+        currentUser = data.user;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('main-screen').classList.remove('hidden');
+        document.getElementById('current-nurse').textContent = `護理師：${currentUser.name}`;
+        renderPatientList();
+        selectPatient(PATIENTS[0].id);
+        initPainChart();
+    } catch (e) {
+        errEl.textContent = '無法連線到伺服器，請確認後端已啟動（python -m uvicorn api:app --port 8001）';
+    }
 }
 
 function doLogout() {
+    authToken = null;
+    currentUser = null;
     document.getElementById('main-screen').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
 }
 
-// ── Tab 切換 ──
+// ══════════════════════════════════════
+// Tab 切換
+// ══════════════════════════════════════
+
 function switchTab(tab) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
@@ -44,13 +108,16 @@ function switchTab(tab) {
     if (tab === 'handover') renderHandover();
 }
 
-// ── 病患選擇 ──
+// ══════════════════════════════════════
+// 病患選擇
+// ══════════════════════════════════════
+
 function renderPatientList() {
     const el = document.getElementById('patient-list');
     el.innerHTML = PATIENTS.map(p => {
-        const alertCount = allRecords[p.id].reduce((sum, r) => sum + (r.alerts?.length || 0), 0);
+        const ac = allRecords[p.id].reduce((s, r) => s + (r.alerts?.length || 0), 0);
         return `<div class="patient-chip" id="chip-${p.id}" onclick="selectPatient('${p.id}')">
-            ${p.bed} ${p.name}${alertCount > 0 ? `<span class="chip-alert">⚠${alertCount}</span>` : ''}
+            ${p.bed} ${p.name}${ac > 0 ? `<span class="chip-alert">⚠${ac}</span>` : ''}
         </div>`;
     }).join('');
 }
@@ -65,16 +132,18 @@ function selectPatient(id) {
         (currentPatient.allergies?.length
             ? ' ' + currentPatient.allergies.map(a => `<span class="allergy-tag">⚠ ${a} 過敏</span>`).join(' ')
             : '');
-    // 重置 SOAP 區
     document.getElementById('soap-cards').classList.add('hidden');
     document.getElementById('save-ok').classList.add('hidden');
     document.getElementById('processing').classList.add('hidden');
-    // 更新側面板
+    document.getElementById('transcript-area').classList.add('hidden');
     renderTimeline();
     updatePainChart();
 }
 
-// ── 語音錄音（Web Audio API）──
+// ══════════════════════════════════════
+// 語音錄音（真實 Web Audio API）
+// ══════════════════════════════════════
+
 let mediaRecorder = null;
 let audioChunks = [];
 let recordTimer = null;
@@ -83,14 +152,14 @@ let recordSeconds = 0;
 async function startRecording() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
         audioChunks = [];
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.onstop = () => {
             stream.getTracks().forEach(t => t.stop());
-            handleRecordingComplete();
+            handleRecordingDone();
         };
-        mediaRecorder.start();
+        mediaRecorder.start(100); // 每 100ms 收集一次
         recordSeconds = 0;
         document.getElementById('record-btn').classList.add('recording');
         document.getElementById('recording-indicator').classList.remove('hidden');
@@ -99,8 +168,7 @@ async function startRecording() {
             document.getElementById('record-timer').textContent = `${recordSeconds}s`;
         }, 1000);
     } catch (e) {
-        console.warn('麥克風無法存取', e);
-        alert('無法存取麥克風，請確認瀏覽器權限。可使用下方手動輸入。');
+        alert('無法存取麥克風：' + e.message + '\n請用 HTTPS 或 localhost 開啟頁面');
     }
 }
 
@@ -113,18 +181,42 @@ function stopRecording() {
     }
 }
 
-async function handleRecordingComplete() {
-    // 目前使用模擬 STT（因為瀏覽器端無法直接跑 Whisper）
-    // 實際部署時會將音檔傳到後端 STT 服務
-    const demoTexts = [
-        `${currentPatient?.name || '病患'}今天傷口發紅，pain scale 4分，BP 140/90，HR 88，BT 37.2，PRN 給一顆 Voltaren 25mg`,
-        `${currentPatient?.name || '病患'}主訴頭痛，pain scale 6分，BP 158/95，HR 96，BT 38.1，給 Acetaminophen 500mg PO`,
-        `${currentPatient?.name || '病患'}傷口換藥完成，滲液少量，pain scale 2分，BP 125/80，HR 76，SpO2 98%`,
-    ];
-    const text = demoTexts[Math.floor(Math.random() * demoTexts.length)];
+async function handleRecordingDone() {
+    if (!audioChunks.length) return;
 
-    document.getElementById('transcript-text').value = text;
-    document.getElementById('transcript-area').classList.remove('hidden');
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    console.log(`[錄音] 完成，大小：${(audioBlob.size / 1024).toFixed(1)} KB`);
+
+    // 顯示處理中
+    document.getElementById('processing').classList.remove('hidden');
+    document.getElementById('transcript-area').classList.add('hidden');
+
+    // 真實 STT：上傳音檔到後端
+    try {
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+
+        const res = await fetch(`${API_BASE}/stt/transcribe`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!res.ok) throw new Error(`STT API 錯誤 ${res.status}`);
+        const sttResult = await res.json();
+
+        document.getElementById('processing').classList.add('hidden');
+        document.getElementById('transcript-text').value = sttResult.cleaned_text || sttResult.text;
+        document.getElementById('transcript-area').classList.remove('hidden');
+
+        // 顯示辨識信心度
+        const conf = sttResult.confidence ? `（信心度 ${(sttResult.confidence * 100).toFixed(0)}%）` : '';
+        console.log(`[STT] 辨識結果${conf}：${sttResult.text}`);
+
+    } catch (e) {
+        document.getElementById('processing').classList.add('hidden');
+        console.error('[STT] 失敗', e);
+        alert('語音辨識失敗：' + e.message + '\n請確認後端 STT 服務已啟動');
+    }
 }
 
 function clearTranscript() {
@@ -132,7 +224,10 @@ function clearTranscript() {
     document.getElementById('transcript-area').classList.add('hidden');
 }
 
-// ── 送給 Brain ──
+// ══════════════════════════════════════
+// 送給 Brain（真實 LLM）
+// ══════════════════════════════════════
+
 async function sendToBrain() {
     const text = document.getElementById('transcript-text').value.trim();
     if (!text) return;
@@ -152,16 +247,17 @@ async function processBrain(rawText) {
 
     let output;
     try {
-        const res = await fetch(BRAIN_API, {
+        const res = await fetch(`${API_BASE}/brain/process`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ raw_text: rawText }),
         });
-        if (!res.ok) throw new Error(res.status);
+        if (!res.ok) throw new Error(`Brain API 錯誤 ${res.status}`);
         output = await res.json();
     } catch (e) {
-        console.warn('Brain API 離線，使用模擬', e);
-        output = mockBrain(rawText);
+        document.getElementById('processing').classList.add('hidden');
+        alert('SOAP 生成失敗：' + e.message + '\n請確認 Ollama 正在運行（ollama serve）');
+        return;
     }
 
     currentOutput = output;
@@ -173,7 +269,10 @@ async function processBrain(rawText) {
     if (currentAlerts.length > 0) showAlert(currentAlerts[0]);
 }
 
-// ── 顯示 SOAP ──
+// ══════════════════════════════════════
+// 顯示 SOAP
+// ══════════════════════════════════════
+
 function displaySOAP(o) {
     document.getElementById('soap-s').textContent = o.soap.subjective || '（無資料）';
     document.getElementById('soap-o').textContent = o.soap.objective || '（無資料）';
@@ -207,7 +306,10 @@ function displaySOAP(o) {
     document.getElementById('soap-cards').classList.remove('hidden');
 }
 
-// ── 警示 ──
+// ══════════════════════════════════════
+// 警示
+// ══════════════════════════════════════
+
 function showAlert(a) {
     document.getElementById('alert-msg').textContent = a.message;
     document.getElementById('alert-val').textContent = a.detected;
@@ -228,7 +330,10 @@ function playAlertSound() {
     } catch(e) {}
 }
 
-// ── 存檔 ──
+// ══════════════════════════════════════
+// 存檔
+// ══════════════════════════════════════
+
 function confirmSave() {
     if (!currentOutput || !currentPatient) return;
     const now = new Date();
@@ -244,7 +349,7 @@ function confirmSave() {
     });
     totalAlerts += currentAlerts.length;
 
-    // 同時存入 IndexedDB（離線備份）
+    // IndexedDB 離線備份
     if (typeof saveRecordLocally === 'function') {
         saveRecordLocally({
             patientId: currentPatient.id,
@@ -265,12 +370,26 @@ function confirmSave() {
     updatePainChart();
     renderPatientList();
 
-    setTimeout(() => {
-        document.getElementById('save-ok').classList.add('hidden');
-    }, 2500);
+    // 更新時間軸
+    if (currentOutput.medications) {
+        for (const med of currentOutput.medications) {
+            const danger = currentAlerts.some(a => a.item === med.name);
+            if (typeof addTimelineEvent === 'function') {
+                addTimelineEvent(time, `${med.name} ${med.dose||''} ${med.unit||''} ${med.route||''}`, danger);
+            }
+        }
+    }
+    if (currentOutput.pain_scale != null && typeof addPainDataPoint === 'function') {
+        addPainDataPoint(time, currentOutput.pain_scale);
+    }
+
+    setTimeout(() => { document.getElementById('save-ok').classList.add('hidden'); }, 2500);
 }
 
-// ── 側面板時間軸 ──
+// ══════════════════════════════════════
+// 側面板
+// ══════════════════════════════════════
+
 function renderTimeline() {
     if (!currentPatient) return;
     const records = allRecords[currentPatient.id];
@@ -281,47 +400,15 @@ function renderTimeline() {
         const meds = r.medications?.map(m => `${m.name} ${m.dose||''} ${m.unit||''}`).join(', ') || '';
         return `<div class="tl-item ${danger?'danger':''}">
             <span class="tl-time">${r.time}</span>
-            <span>${meds || r.soap.plan || '護理紀錄'}${danger?' ⚠️':''}</span>
+            <span>${meds || r.soap?.plan || '護理紀錄'}${danger?' ⚠️':''}</span>
         </div>`;
     }).reverse().join('');
 }
 
-// ── 模擬 Brain 輸出 ──
-function mockBrain(text) {
-    const pain = text.match(/pain\s*scale\s*(\d+)/i);
-    const bp = text.match(/BP\s*(\d+\/\d+)/i);
-    const hr = text.match(/HR\s*(\d+)/i);
-    const bt = text.match(/BT\s*([\d.]+)/i);
-    const spo2 = text.match(/SpO2\s*(\d+)/i);
+// ══════════════════════════════════════
+// 交班儀表板
+// ══════════════════════════════════════
 
-    const objParts = [];
-    if (bp) objParts.push(`BP ${bp[1]} mmHg`);
-    if (hr) objParts.push(`HR ${hr[1]} bpm`);
-    if (bt) objParts.push(`BT ${bt[1]}°C`);
-    if (spo2) objParts.push(`SpO2 ${spo2[1]}%`);
-
-    const meds = [];
-    const medPattern = /(Acetaminophen|Voltaren|Voren|Aspirin|普拿疼|Amlodipine)\s*(\d+)?\s*(mg|顆)?/gi;
-    let m;
-    while ((m = medPattern.exec(text)) !== null) {
-        meds.push({ name: m[1], dose: m[2]||null, unit: m[3]||'mg', route: text.match(/PRN/i)?'PRN':'PO', raw: m[0] });
-    }
-
-    return {
-        soap: {
-            subjective: text.includes('痛') || text.includes('頭') ? '病患主訴疼痛不適' : '病患無特殊主訴',
-            objective: objParts.join(', ') || text,
-            assessment: pain && parseInt(pain[1]) >= 4 ? '疼痛控制需持續評估' : '目前狀況穩定',
-            plan: meds.length ? `依醫囑給予 ${meds.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')}` : '持續觀察',
-        },
-        medications: meds,
-        pain_scale: pain ? parseInt(pain[1]) : null,
-        warnings: [],
-        raw_text: text,
-    };
-}
-
-// ── 交班儀表板 ──
 function renderHandover() {
     const totalRecords = Object.values(allRecords).reduce((s, r) => s + r.length, 0);
     document.getElementById('stat-patients').textContent = PATIENTS.length;
@@ -331,10 +418,10 @@ function renderHandover() {
     const container = document.getElementById('handover-patients');
     container.innerHTML = PATIENTS.map(p => {
         const records = allRecords[p.id];
-        const alertCount = records.reduce((s, r) => s + (r.alerts?.length || 0), 0);
+        const ac = records.reduce((s, r) => s + (r.alerts?.length || 0), 0);
         return `<div class="ho-patient">
             <div class="ho-patient-header">
-                <span class="ho-patient-name">${p.name}（${p.age}歲）${alertCount > 0 ? ' ⚠️' : ''}</span>
+                <span class="ho-patient-name">${p.name}（${p.age}歲）${ac > 0 ? ' ⚠️' : ''}</span>
                 <span class="ho-patient-bed">${p.bed} | ${p.dx}</span>
             </div>
             <div class="ho-records">
