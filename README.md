@@ -1,183 +1,263 @@
-# 護理聲助手 VoiceNursy
+# VoiceNursy 智能護理站系統
 
-> 專為高壓醫療環境設計的 AI 智能護理站——讓護理師專注照護，而非文書。
-
----
-
-## 專案簡介
-
-VoiceNursy 是一款純軟體的行動應用程式，定位為「隱形的 AI 護理長」。系統在不改變護理師現有巡房習慣的前提下，透過語音輸入自動完成病歷記錄，並主動攔截潛在的給藥錯誤。
-
-**解決的三大痛點：**
-- 護理師每日花費 2-3 小時以上在文書作業
-- 輪班疲勞下的給藥劑量錯誤風險
-- 傳統交班資訊不直覺、容易遺漏
-
----
-
-## 核心功能
-
-### 🎙️ Voice-to-SOAP 語音病歷生成
-護理師在床邊口述（支援中文、英文、台語混合），系統自動生成符合醫院評鑑標準的 SOAP 格式病歷。巡房結束，紀錄即完成。
-
-### 🚨 Active Safety Net 主動防呆警示
-即時分析語音內容中的數值與劑量，偵測到異常時（如普拿疼 5000mg）立即觸發紅色閃爍警示與提示音，強制護理師確認後方可儲存。
-
-### 📊 Visual Handover Dashboard 視覺化交班儀表板
-自動將一整班的 SOAP 紀錄轉化為病患狀態時間軸與生命徵象趨勢圖，接班護理師幾秒內即可掌握全班狀況。
-
----
-
-## 技術架構
-
-```
-行動裝置 (React Native)
-    │
-    ├── 語音輸入 → OpenAI Whisper API (STT)
-    ├── SOAP 生成 → Google Gemini 1.5 Pro / Ollama Llama 3.1 (備援)
-    ├── 防呆警示 → RAG Engine (pgvector + 藥典知識庫)
-    └── 離線模式 → SQLite 本地儲存 + 自動同步
-    │
-後端服務 (Python FastAPI)
-    │
-    └── PostgreSQL 16 + pgvector
-```
-
-| 層級 | 技術 |
-|------|------|
-| 前端 | React Native (TypeScript) |
-| STT | OpenAI Whisper API (large-v3) |
-| LLM | Google Gemini 1.5 Pro / Ollama + Llama 3.1 |
-| RAG | pgvector (PostgreSQL 擴充) |
-| 後端 | Python FastAPI |
-| 資料庫 | PostgreSQL 16 + pgvector |
-| 本地儲存 | SQLite (expo-sqlite) |
-
----
-
-## 快速開始
-
-### 環境需求
-
-- Node.js 20+
-- Python 3.11+
-- PostgreSQL 16（含 pgvector 擴充）
-- Expo CLI
-
-### 後端啟動
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# 設定環境變數
-cp .env.example .env
-# 填入 OPENAI_API_KEY、GEMINI_API_KEY、DATABASE_URL
-
-# 資料庫初始化
-python scripts/init_db.py
-
-# 啟動服務
-uvicorn main:app --reload --port 8000
-```
-
-### 前端啟動
-
-```bash
-cd mobile
-npm install
-npx expo start
-```
-
----
+VoiceNursy 是一個為高壓醫療環境設計的純軟體智能護理站系統，旨在減少護理師的文書負擔並提升醫療安全。系統的核心價值在於將護理師的口語記錄自動轉換為符合醫院評鑑標準的專業 SOAP 格式病歷。
 
 ## 專案結構
 
 ```
-voice-nursy/
-├── backend/                  # FastAPI 後端
-│   ├── services/
-│   │   ├── auth/             # 認證服務
-│   │   ├── stt/              # 語音轉文字服務
-│   │   ├── soap/             # SOAP 生成服務
-│   │   ├── safety/           # Safety Net 防呆服務
-│   │   ├── handover/         # 交班儀表板服務
-│   │   ├── sync/             # 離線同步服務
-│   │   └── admin/            # 管理服務
-│   ├── rag/                  # RAG 引擎（藥典/縮寫字典）
-│   ├── models/               # 資料庫模型
-│   └── tests/                # 測試（Pytest + Hypothesis）
-├── mobile/                   # React Native 前端
-│   ├── components/
-│   │   ├── AudioRecorder/
-│   │   ├── SOAPViewer/
-│   │   ├── AlertOverlay/
-│   │   └── HandoverDashboard/
-│   ├── store/                # Zustand 狀態管理
-│   └── hooks/                # React Query hooks
-└── .kiro/specs/voice-nursy/  # 規格文件
-    ├── requirements.md
-    ├── design.md
-    └── tasks.md
+VoiceNursy/
+├── backend/                 # Python/FastAPI 後端
+│   ├── app/
+│   │   ├── api/            # API 端點
+│   │   ├── core/           # 核心配置（資料庫、Redis、Storage）
+│   │   ├── models/         # 資料庫模型
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── services/       # 業務邏輯服務
+│   │   └── main.py         # 應用程式入口
+│   ├── alembic/            # 資料庫遷移
+│   ├── tests/              # 測試
+│   ├── requirements.txt    # Python 依賴
+│   └── .env.example        # 環境變數範本
+│
+├── frontend/               # React Native 前端
+│   ├── src/
+│   │   ├── components/     # UI 元件
+│   │   ├── screens/        # 畫面
+│   │   ├── navigation/     # 導航
+│   │   ├── services/       # API 服務
+│   │   ├── store/          # 狀態管理
+│   │   ├── types/          # TypeScript 類型
+│   │   └── utils/          # 工具函數
+│   ├── package.json        # Node.js 依賴
+│   ├── app.json            # Expo 配置
+│   └── .env.example        # 環境變數範本
+│
+├── docker-compose.yml      # Docker 編排
+└── README.md               # 專案說明
 ```
 
----
+## 技術棧
 
-## API 文件
+### 後端
+- **Python 3.8+**: 核心語言
+- **FastAPI**: Web 框架
+- **PostgreSQL**: 主資料庫
+- **Redis**: 快取和訊息佇列
+- **S3/MinIO**: 音檔儲存
+- **OpenAI Whisper**: 語音轉文字
+- **LangChain/GPT-4**: SOAP 轉換和驗證
 
-後端啟動後可於 `http://localhost:8000/docs` 查看完整 Swagger UI 文件。
+### 前端
+- **React Native**: 跨平台行動應用
+- **TypeScript**: 類型安全
+- **Expo**: 開發工具鏈
+- **Zustand**: 狀態管理
+- **Axios**: HTTP 客戶端
 
-主要端點：
+## 快速開始
 
-| 服務 | 路徑 | 說明 |
-|------|------|------|
-| 認證 | `POST /auth/login` | 員工編號登入 |
-| STT | `POST /stt/transcribe` | 語音轉文字 |
-| SOAP | `POST /soap/generate` | 生成 SOAP 病歷 |
-| 防呆 | `POST /safety/check` | 數值/劑量警示檢查 |
-| 交班 | `GET /handover/dashboard` | 取得交班儀表板 |
-| 同步 | `POST /sync/push` | 離線資料同步 |
+### 前置需求
 
----
+- Python 3.8+
+- Node.js 16+
+- PostgreSQL 14+
+- Redis 7+
+- MinIO 或 AWS S3 帳號
 
-## 測試
+### 後端設定
 
+1. 進入後端目錄：
 ```bash
 cd backend
-# 單元測試
-pytest tests/unit/
-
-# 屬性測試（Hypothesis）
-pytest tests/property/
-
-# 全部測試
-pytest --cov=. tests/
 ```
 
----
+2. 建立虛擬環境：
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或
+venv\Scripts\activate  # Windows
+```
 
-## 商業模式
+3. 安裝依賴：
+```bash
+pip install -r requirements.txt
+```
 
-- **SaaS 訂閱制**：依護理站或帳號數量收取月費/年費
-- **地端部署**：醫學中心專用，搭配本地 LLM 確保病歷不出院
-- **HIS/NIS 介接**：與醫院現有資訊系統 API 串接專案費用
+4. 複製環境變數範本並填入實際值：
+```bash
+cp .env.example .env
+# 編輯 .env 檔案，填入資料庫、Redis、Storage 等配置
+```
 
-目標客戶：區域醫院、醫學中心、大型連鎖長照機構
+5. 執行資料庫遷移：
+```bash
+alembic upgrade head
+```
 
----
+6. 啟動後端服務：
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-## 開發時程
+後端 API 將在 http://localhost:8000 運行
 
-| 階段 | 時程 | 目標 |
-|------|------|------|
-| Phase 1 | Month 1-2 | Whisper STT + Gemini SOAP 核心 MVP |
-| Phase 2 | Month 3-4 | RAG 防呆機制 + 前端介面 |
-| Phase 3 | Month 5-6 | 交班儀表板 + 封閉測試 |
+### 前端設定
 
----
+1. 進入前端目錄：
+```bash
+cd frontend
+```
+
+2. 安裝依賴：
+```bash
+npm install
+# 或
+yarn install
+```
+
+3. 複製環境變數範本並填入實際值：
+```bash
+cp .env.example .env
+# 編輯 .env 檔案，設定 API_BASE_URL 等配置
+```
+
+4. 啟動開發伺服器：
+```bash
+npm start
+# 或
+yarn start
+```
+
+5. 在模擬器或實體裝置上運行：
+```bash
+# iOS
+npm run ios
+
+# Android
+npm run android
+
+# Web
+npm run web
+```
+
+### 使用 Docker Compose（推薦）
+
+1. 確保已安裝 Docker 和 Docker Compose
+
+2. 啟動所有服務：
+```bash
+docker-compose up -d
+```
+
+這將啟動：
+- PostgreSQL (port 5432)
+- Redis (port 6379)
+- MinIO (port 9000, console: 9001)
+- Backend API (port 8000)
+
+3. 查看服務狀態：
+```bash
+docker-compose ps
+```
+
+4. 停止服務：
+```bash
+docker-compose down
+```
+
+## 開發指南
+
+### 後端開發
+
+- API 文件：http://localhost:8000/docs (Swagger UI)
+- 資料庫遷移：`alembic revision --autogenerate -m "描述"`
+- 執行測試：`pytest`
+- 程式碼格式化：`black app/`
+- 類型檢查：`mypy app/`
+
+### 前端開發
+
+- 執行測試：`npm test`
+- 程式碼格式化：`npm run format`
+- Lint 檢查：`npm run lint`
+
+## 測試策略
+
+### 後端測試
+- **單元測試**: 測試個別函數和類別
+- **屬性測試**: 使用 Hypothesis 進行屬性驗證
+- **整合測試**: 測試 API 端點和外部服務整合
+
+執行測試：
+```bash
+cd backend
+pytest                          # 執行所有測試
+pytest -m unit                  # 只執行單元測試
+pytest -m property_test         # 只執行屬性測試
+pytest --cov=app                # 執行測試並生成覆蓋率報告
+```
+
+### 前端測試
+- **單元測試**: 測試元件和工具函數
+- **屬性測試**: 使用 fast-check 進行屬性驗證
+
+執行測試：
+```bash
+cd frontend
+npm test                        # 執行所有測試
+npm test -- --watch             # 監視模式
+```
+
+## 環境變數說明
+
+### 後端環境變數
+詳見 `backend/.env.example`
+
+關鍵配置：
+- `DATABASE_URL`: PostgreSQL 連線字串
+- `REDIS_URL`: Redis 連線字串
+- `STORAGE_*`: S3/MinIO 儲存配置
+- `OPENAI_API_KEY`: OpenAI API 金鑰
+- `JWT_SECRET_KEY`: JWT 簽章金鑰
+
+### 前端環境變數
+詳見 `frontend/.env.example`
+
+關鍵配置：
+- `API_BASE_URL`: 後端 API 位址
+- `API_TIMEOUT`: API 請求逾時時間
+
+## 部署
+
+### 後端部署
+
+1. 建立 Docker 映像：
+```bash
+cd backend
+docker build -t voicenursy-backend .
+```
+
+2. 執行容器：
+```bash
+docker run -d -p 8000:8000 --env-file .env voicenursy-backend
+```
+
+### 前端部署
+
+1. 建置生產版本：
+```bash
+cd frontend
+expo build:android  # Android
+expo build:ios      # iOS
+```
+
+2. 發布到應用商店或使用 Expo 託管
 
 ## 授權
 
-本專案為私有商業軟體，版權所有。
+本專案為私有專案，未經授權不得使用或散布。
+
+## 聯絡方式
+
+如有問題或建議，請聯絡開發團隊。
