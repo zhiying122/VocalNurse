@@ -41,6 +41,7 @@
                 <nav class="header-nav">
                     <button class="nav-btn active" data-tab="patrol" onclick="switchTab('patrol')">🚶 巡房模式</button>
                     <button class="nav-btn" data-tab="handover" onclick="switchTab('handover')">📊 交班儀表板</button>
+                    <button class="nav-btn" data-tab="tech" onclick="switchTab('tech')">⚙️ 技術架構</button>
                 </nav>
                 <div class="header-right">
                     <span id="current-nurse"></span>
@@ -158,6 +159,129 @@
                         </div>
                     </div>
                     <div id="handover-patients"></div>
+                </div>
+            </div>
+
+            <!-- 技術架構 -->
+            <div id="tab-tech" class="tab-content hidden">
+                <div class="tech-page">
+                    <h2>⚙️ VoiceNursy 系統技術架構</h2>
+                    <p class="tech-intro">全程本地運行，病歷資料不出院，符合台灣醫療個資法（PDPA）</p>
+
+                    <!-- 架構流程圖 -->
+                    <div class="tech-flow">
+                        <div class="flow-step">
+                            <div class="flow-icon">🎙️</div>
+                            <div class="flow-title">語音輸入</div>
+                            <div class="flow-detail">Web Audio API<br>瀏覽器即時錄音<br>WebM Opus 編碼</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-icon">🔊</div>
+                            <div class="flow-title">語音辨識 (STT)</div>
+                            <div class="flow-detail">OpenAI Whisper base<br>本地 CPU 推論<br>醫療術語 Prompt 優化</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-icon">🧹</div>
+                            <div class="flow-title">文字前處理</div>
+                            <div class="flow-detail">藥名標準化字典<br>醫學縮寫統一<br>PII 個資遮罩</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-icon">🧠</div>
+                            <div class="flow-title">SOAP 生成</div>
+                            <div class="flow-detail">Ollama + Llama 3.1 8B<br>Prompt Engineering<br>JSON Schema 約束</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-icon">🛡️</div>
+                            <div class="flow-title">防呆引擎</div>
+                            <div class="flow-detail">劑量閾值比對<br>過敏原交叉檢查<br>生命徵象警戒值</div>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">
+                            <div class="flow-icon">📊</div>
+                            <div class="flow-title">視覺化輸出</div>
+                            <div class="flow-detail">SOAP 卡片<br>疼痛趨勢圖<br>交班儀表板</div>
+                        </div>
+                    </div>
+
+                    <!-- 技術細節卡片 -->
+                    <div class="tech-cards">
+                        <div class="tech-card">
+                            <h3>🔊 語音辨識層</h3>
+                            <table class="tech-table">
+                                <tr><td>模型</td><td>OpenAI Whisper base（本地）</td></tr>
+                                <tr><td>輸入格式</td><td>WebM → ffmpeg 轉 16kHz WAV</td></tr>
+                                <tr><td>語言支援</td><td>中文 / 英文 / 台語混合</td></tr>
+                                <tr><td>優化手段</td><td>醫療術語 initial_prompt 注入 50+ 關鍵詞</td></tr>
+                                <tr><td>部署方式</td><td>本地 CPU，不需 GPU，不需網路</td></tr>
+                            </table>
+                        </div>
+
+                        <div class="tech-card">
+                            <h3>🧠 AI 推論層</h3>
+                            <table class="tech-table">
+                                <tr><td>主模型</td><td>Llama 3.1 8B（Ollama 本地）</td></tr>
+                                <tr><td>備援模型</td><td>Gemini 2.0 Flash / GPT-4o</td></tr>
+                                <tr><td>Prompt 策略</td><td>角色扮演 + SOAP 分類規則 + JSON Schema 約束</td></tr>
+                                <tr><td>前處理</td><td>藥名標準化（30+ 藥物映射）+ 縮寫統一（18 種）</td></tr>
+                                <tr><td>隱私保護</td><td>PII 遮罩（身分證/電話/姓名/Email）</td></tr>
+                            </table>
+                        </div>
+
+                        <div class="tech-card">
+                            <h3>🛡️ 防呆引擎</h3>
+                            <table class="tech-table">
+                                <tr><td>劑量檢查</td><td>8 種常用藥品最大單次/每日劑量閾值</td></tr>
+                                <tr><td>過敏原</td><td>直接匹配 + NSAIDs 類別匹配 + Penicillin 交叉過敏</td></tr>
+                                <tr><td>生命徵象</td><td>BP / HR / SpO2 / BT / RR 六項警戒值</td></tr>
+                                <tr><td>觸發方式</td><td>全螢幕紅色閃爍 + 提示音 + 強制確認</td></tr>
+                                <tr><td>稽核記錄</td><td>所有警示觸發與處置選擇均記錄</td></tr>
+                            </table>
+                        </div>
+
+                        <div class="tech-card">
+                            <h3>🏗️ 系統架構</h3>
+                            <table class="tech-table">
+                                <tr><td>後端</td><td>Python FastAPI（非同步高效能）</td></tr>
+                                <tr><td>前端</td><td>原生 HTML/CSS/JS（零框架依賴）</td></tr>
+                                <tr><td>圖表</td><td>Chart.js（疼痛趨勢折線圖）</td></tr>
+                                <tr><td>離線支援</td><td>IndexedDB 本地暫存 + 網路恢復自動同步</td></tr>
+                                <tr><td>認證</td><td>PBKDF2-SHA256 密碼雜湊 + JWT Token</td></tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 與 ChatGPT 的差異 -->
+                    <div class="tech-diff">
+                        <h3>💡 與直接使用 ChatGPT 的差異</h3>
+                        <div class="diff-grid">
+                            <div class="diff-item bad">
+                                <h4>❌ 直接用 ChatGPT</h4>
+                                <ul>
+                                    <li>病歷資料上傳雲端，違反個資法</li>
+                                    <li>無法辨識台語和醫療口語</li>
+                                    <li>沒有劑量防呆機制</li>
+                                    <li>沒有過敏原交叉檢查</li>
+                                    <li>輸出格式不穩定</li>
+                                    <li>需要網路，醫院 WiFi 不穩就掛</li>
+                                </ul>
+                            </div>
+                            <div class="diff-item good">
+                                <h4>✅ VoiceNursy</h4>
+                                <ul>
+                                    <li>全程本地運行，資料不出院</li>
+                                    <li>醫療術語 Prompt 優化 + 校正字典</li>
+                                    <li>即時劑量閾值比對，2 秒內攔截</li>
+                                    <li>Penicillin/NSAIDs 交叉過敏偵測</li>
+                                    <li>Pydantic Schema 強制 JSON 結構</li>
+                                    <li>IndexedDB 離線暫存，斷網照用</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

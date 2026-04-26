@@ -185,3 +185,38 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .mode-toggle{margin-top:12px;font-size:.85rem;color:#666}
 .mode-toggle label{cursor:pointer}
 .mode-toggle input{margin-right:4px}
+
+/* ── 技術架構頁 ── */
+.tech-page{padding:24px;max-width:1200px;margin:0 auto}
+.tech-page h2{font-size:1.4rem;color:#2d3a8c;margin-bottom:4px}
+.tech-intro{color:#666;margin-bottom:24px;font-size:.95rem}
+
+.tech-flow{display:flex;align-items:flex-start;gap:4px;overflow-x:auto;padding:20px 0;margin-bottom:24px}
+.flow-step{background:#fff;border-radius:12px;padding:16px;text-align:center;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0}
+.flow-icon{font-size:2rem;margin-bottom:6px}
+.flow-title{font-weight:700;font-size:.9rem;color:#2d3a8c;margin-bottom:6px}
+.flow-detail{font-size:.75rem;color:#666;line-height:1.5}
+.flow-arrow{font-size:1.5rem;color:#2d3a8c;font-weight:700;align-self:center;flex-shrink:0}
+
+.tech-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:800px){.tech-cards{grid-template-columns:1fr}}
+.tech-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.tech-card h3{font-size:1rem;color:#2d3a8c;margin-bottom:12px}
+.tech-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.tech-table td{padding:6px 8px;border-bottom:1px solid #f0f0f0}
+.tech-table td:first-child{font-weight:600;color:#555;width:100px;white-space:nowrap}
+
+.tech-diff{margin-top:8px}
+.tech-diff h3{font-size:1.1rem;color:#2d3a8c;margin-bottom:12px}
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:800px){.diff-grid{grid-template-columns:1fr}}
+.diff-item{border-radius:12px;padding:20px}
+.diff-item h4{margin-bottom:10px;font-size:.95rem}
+.diff-item ul{list-style:none;padding:0}
+.diff-item li{padding:4px 0;font-size:.85rem;padding-left:8px}
+.diff-item.bad{background:#fff5f5;border:1px solid #ffcdd2}
+.diff-item.bad h4{color:#c62828}
+.diff-item.bad li::before{content:"✗ ";color:#c62828}
+.diff-item.good{background:#f1f8e9;border:1px solid #c8e6c9}
+.diff-item.good h4{color:#2e7d32}
+.diff-item.good li::before{content:"✓ ";color:#2e7d32}

@@ -317,6 +317,7 @@ function switchTab(tab) {
     document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
     document.getElementById('tab-patrol').classList.toggle('hidden', tab!=='patrol');
     document.getElementById('tab-handover').classList.toggle('hidden', tab!=='handover');
+    document.getElementById('tab-tech').classList.toggle('hidden', tab!=='tech');
     if (tab==='handover') renderHandover();
 }
 
