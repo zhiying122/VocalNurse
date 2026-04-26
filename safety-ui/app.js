@@ -7,9 +7,9 @@ const BRAIN_API = 'http://localhost:8001/brain/process';
 
 // ── 模擬病患資料 ──
 const PATIENTS = [
-    { id: 'P001', name: '王大明', bed: '3A-01', mrn: 'M20240001', dx: '右膝關節置換術後 Day 2', age: 72 },
-    { id: 'P002', name: '李美華', bed: '3A-05', mrn: 'M20240002', dx: '肺炎住院治療 Day 5', age: 58 },
-    { id: 'P003', name: '張阿公', bed: '3A-08', mrn: 'M20240003', dx: '糖尿病足傷口照護', age: 81 },
+    { id: 'P001', name: '王大明', bed: '3A-01', mrn: 'M20240001', dx: '右膝關節置換術後 Day 2', age: 72, allergies: ['Penicillin', 'Ampicillin'] },
+    { id: 'P002', name: '李美華', bed: '3A-05', mrn: 'M20240002', dx: '肺炎住院治療 Day 5', age: 58, allergies: ['Aspirin', 'NSAIDs'] },
+    { id: 'P003', name: '張阿公', bed: '3A-08', mrn: 'M20240003', dx: '糖尿病足傷口照護', age: 81, allergies: [] },
 ];
 
 let currentPatient = null;
@@ -61,7 +61,10 @@ function selectPatient(id) {
     document.getElementById(`chip-${id}`)?.classList.add('active');
     document.getElementById('patient-name').textContent = `${currentPatient.name}（${currentPatient.age}歲）`;
     document.getElementById('patient-bed').textContent = currentPatient.bed;
-    document.getElementById('patient-dx').textContent = currentPatient.dx;
+    document.getElementById('patient-dx').innerHTML = currentPatient.dx +
+        (currentPatient.allergies?.length
+            ? ' ' + currentPatient.allergies.map(a => `<span class="allergy-tag">⚠ ${a} 過敏</span>`).join(' ')
+            : '');
     // 重置 SOAP 區
     document.getElementById('soap-cards').classList.add('hidden');
     document.getElementById('save-ok').classList.add('hidden');
@@ -240,6 +243,19 @@ function confirmSave() {
         raw: currentOutput.raw_text,
     });
     totalAlerts += currentAlerts.length;
+
+    // 同時存入 IndexedDB（離線備份）
+    if (typeof saveRecordLocally === 'function') {
+        saveRecordLocally({
+            patientId: currentPatient.id,
+            patientName: currentPatient.name,
+            soap: currentOutput.soap,
+            medications: currentOutput.medications,
+            pain_scale: currentOutput.pain_scale,
+            alerts: currentAlerts,
+            time,
+        }).catch(e => console.warn('[Offline] 本地存檔失敗', e));
+    }
 
     document.getElementById('soap-cards').classList.add('hidden');
     document.getElementById('save-ok').classList.remove('hidden');

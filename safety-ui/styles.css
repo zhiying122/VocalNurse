@@ -153,3 +153,16 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .ho-record.has-alert{border-color:#c62828;background:#fff5f5}
 .ho-vitals{margin-top:8px}
 .ho-vitals canvas{max-height:150px}
+
+/* ── 網路狀態 ── */
+.net-online{font-size:.75rem;padding:2px 8px;border-radius:10px;background:rgba(46,125,50,.2)}
+.net-offline{font-size:.75rem;padding:2px 8px;border-radius:10px;background:rgba(198,40,40,.2);color:#c62828;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.5}}
+
+/* ── 過敏標籤 ── */
+.allergy-tag{display:inline-block;background:#ffcdd2;color:#c62828;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600;margin-left:4px}
+
+/* ── 可點擊修正標籤 ── */
+.editable-chip{display:inline-block;background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:12px;font-size:.85rem;cursor:pointer;margin:2px;border:1px solid #90caf9;transition:all .2s}
+.editable-chip:hover{background:#bbdefb;border-color:#1565c0}
+.editable-chip.editing{background:#fff;border-color:#2d3a8c;outline:none}

@@ -1,11 +1,17 @@
 /**
  * 防呆邏輯判定：Check_Safety()
- * 即時比對 Brain Layer 傳來的藥物數據與安全劑量資料庫
+ * 劑量超標 + 過敏原連動 + 生命徵象異常
  */
 
 let drugSafetyDB = null;
 
-// 載入藥品安全劑量資料庫
+// 病患過敏資料（實際會從後端取得）
+const PATIENT_ALLERGIES = {
+    'P001': ['Penicillin', 'Ampicillin'],
+    'P002': ['Aspirin', 'NSAIDs'],
+    'P003': [],
+};
+
 async function loadDrugDB() {
     const res = await fetch('drug_safety_db.json');
     drugSafetyDB = await res.json();
@@ -13,62 +19,89 @@ async function loadDrugDB() {
 }
 
 /**
- * 主要防呆檢查函式
- * @param {Object} brainOutput - 角色 B 回傳的完整 JSON
- * @returns {Array} alerts - 警示清單
+ * 主要防呆檢查
  */
 function checkSafety(brainOutput) {
     const alerts = [];
+    if (!drugSafetyDB) return alerts;
 
-    if (!drugSafetyDB) {
-        console.warn('[Safety] 資料庫尚未載入');
-        return alerts;
-    }
-
-    // 檢查藥物劑量
+    // 1. 藥物劑量檢查
     if (brainOutput.medications) {
         for (const med of brainOutput.medications) {
-            const alert = checkDrugDosage(med);
-            if (alert) alerts.push(alert);
+            const doseAlert = checkDrugDosage(med);
+            if (doseAlert) alerts.push(doseAlert);
+
+            // 2. 過敏原連動檢查
+            const allergyAlert = checkAllergy(med);
+            if (allergyAlert) alerts.push(allergyAlert);
         }
     }
 
-    // 檢查生命徵象（從 SOAP Objective 欄位提取）
-    if (brainOutput.soap && brainOutput.soap.objective) {
-        const vitalAlerts = checkVitalSigns(brainOutput.soap.objective);
-        alerts.push(...vitalAlerts);
+    // 3. 生命徵象檢查
+    if (brainOutput.soap?.objective) {
+        alerts.push(...checkVitalSigns(brainOutput.soap.objective));
     }
 
     return alerts;
 }
 
 /**
- * 檢查單一藥物劑量是否超標
+ * 過敏原連動檢查
  */
+function checkAllergy(medication) {
+    if (!currentPatient) return null;
+    const allergies = PATIENT_ALLERGIES[currentPatient.id] || [];
+    if (!allergies.length) return null;
+
+    const medName = medication.name.toLowerCase();
+    const nsaidDrugs = ['voltaren', 'voren', 'diclofenac', 'aspirin', 'ibuprofen'];
+
+    for (const allergen of allergies) {
+        const allergenLower = allergen.toLowerCase();
+
+        // 直接匹配
+        if (medName.includes(allergenLower) || allergenLower.includes(medName)) {
+            return {
+                type: 'allergy',
+                severity: 'critical',
+                item: medication.name,
+                detected: `病患對 ${allergen} 過敏`,
+                range: '禁止使用',
+                message: `⚠️ 嚴重警告：病患對 ${allergen} 過敏，${medication.name} 屬於相關藥物，禁止使用！`,
+            };
+        }
+
+        // NSAIDs 類別匹配
+        if (allergenLower === 'nsaids' && nsaidDrugs.includes(medName)) {
+            return {
+                type: 'allergy',
+                severity: 'critical',
+                item: medication.name,
+                detected: `病患對 NSAIDs 類藥物過敏`,
+                range: '禁止使用',
+                message: `⚠️ 嚴重警告：病患對 NSAIDs 過敏，${medication.name} 為 NSAIDs 類藥物，禁止使用！`,
+            };
+        }
+    }
+    return null;
+}
+
 function checkDrugDosage(medication) {
     const drugInfo = findDrug(medication.name);
     if (!drugInfo) return null;
-
     const dose = parseDose(medication.dose, medication.unit);
     if (dose === null) return null;
-
     if (dose > drugInfo.max_single_dose_mg) {
         return {
-            type: 'dosage_exceeded',
-            severity: 'critical',
-            item: medication.name,
-            detected: `${dose} mg`,
+            type: 'dosage_exceeded', severity: 'critical',
+            item: medication.name, detected: `${dose} mg`,
             range: `最大單次劑量 ${drugInfo.max_single_dose_mg} mg`,
             message: drugInfo.warning,
         };
     }
-
     return null;
 }
 
-/**
- * 在資料庫中查找藥物（支援別名）
- */
 function findDrug(name) {
     if (!drugSafetyDB) return null;
     const lower = name.toLowerCase();
@@ -78,93 +111,44 @@ function findDrug(name) {
     );
 }
 
-/**
- * 解析劑量數字
- */
 function parseDose(dose, unit) {
     if (!dose) return null;
-    const num = parseFloat(dose.replace(/[^\d.]/g, ''));
+    const num = parseFloat(String(dose).replace(/[^\d.]/g, ''));
     if (isNaN(num)) return null;
-
-    // 如果單位是 g，轉換為 mg
     if (unit && unit.toLowerCase() === 'g') return num * 1000;
     return num;
 }
 
-/**
- * 檢查生命徵象
- */
-function checkVitalSigns(objectiveText) {
+function checkVitalSigns(text) {
     const alerts = [];
-    const vitals = drugSafetyDB.vital_signs;
+    const v = drugSafetyDB.vital_signs;
 
-    // BP 收縮壓/舒張壓
-    const bpMatch = objectiveText.match(/BP\s*(\d+)\s*\/\s*(\d+)/i);
-    if (bpMatch) {
-        const systolic = parseInt(bpMatch[1]);
-        const diastolic = parseInt(bpMatch[2]);
-
-        if (systolic > vitals.systolic_bp.max) {
-            alerts.push({
-                type: 'vital_abnormal', severity: 'critical',
-                item: '收縮壓 (SBP)', detected: `${systolic} mmHg`,
-                range: `${vitals.systolic_bp.min}-${vitals.systolic_bp.max} mmHg`,
-                message: vitals.systolic_bp.warning_high,
-            });
-        } else if (systolic < vitals.systolic_bp.min) {
-            alerts.push({
-                type: 'vital_abnormal', severity: 'critical',
-                item: '收縮壓 (SBP)', detected: `${systolic} mmHg`,
-                range: `${vitals.systolic_bp.min}-${vitals.systolic_bp.max} mmHg`,
-                message: vitals.systolic_bp.warning_low,
-            });
-        }
+    const bp = text.match(/BP\s*(\d+)\s*\/\s*(\d+)/i);
+    if (bp) {
+        const sys = parseInt(bp[1]);
+        if (sys > v.systolic_bp.max) alerts.push({ type:'vital_abnormal', severity:'critical', item:'收縮壓', detected:`${sys} mmHg`, range:`${v.systolic_bp.min}-${v.systolic_bp.max} mmHg`, message:v.systolic_bp.warning_high });
+        else if (sys < v.systolic_bp.min) alerts.push({ type:'vital_abnormal', severity:'critical', item:'收縮壓', detected:`${sys} mmHg`, range:`${v.systolic_bp.min}-${v.systolic_bp.max} mmHg`, message:v.systolic_bp.warning_low });
     }
 
-    // HR
-    const hrMatch = objectiveText.match(/HR\s*(\d+)/i);
-    if (hrMatch) {
-        const hr = parseInt(hrMatch[1]);
-        if (hr > vitals.heart_rate.max || hr < vitals.heart_rate.min) {
-            alerts.push({
-                type: 'vital_abnormal', severity: 'warning',
-                item: '心跳 (HR)', detected: `${hr} bpm`,
-                range: `${vitals.heart_rate.min}-${vitals.heart_rate.max} bpm`,
-                message: hr > vitals.heart_rate.max ? vitals.heart_rate.warning_high : vitals.heart_rate.warning_low,
-            });
-        }
+    const hr = text.match(/HR\s*(\d+)/i);
+    if (hr) {
+        const val = parseInt(hr[1]);
+        if (val > v.heart_rate.max || val < v.heart_rate.min) alerts.push({ type:'vital_abnormal', severity:'warning', item:'心跳', detected:`${val} bpm`, range:`${v.heart_rate.min}-${v.heart_rate.max} bpm`, message: val > v.heart_rate.max ? v.heart_rate.warning_high : v.heart_rate.warning_low });
     }
 
-    // SpO2
-    const spo2Match = objectiveText.match(/SpO2\s*(\d+)/i);
-    if (spo2Match) {
-        const spo2 = parseInt(spo2Match[1]);
-        if (spo2 < vitals.spo2.min) {
-            alerts.push({
-                type: 'vital_abnormal', severity: 'critical',
-                item: '血氧 (SpO2)', detected: `${spo2}%`,
-                range: `≥ ${vitals.spo2.min}%`,
-                message: vitals.spo2.warning_low,
-            });
-        }
+    const spo2 = text.match(/SpO2\s*(\d+)/i);
+    if (spo2) {
+        const val = parseInt(spo2[1]);
+        if (val < v.spo2.min) alerts.push({ type:'vital_abnormal', severity:'critical', item:'血氧', detected:`${val}%`, range:`≥ ${v.spo2.min}%`, message:v.spo2.warning_low });
     }
 
-    // BT 體溫
-    const btMatch = objectiveText.match(/BT\s*([\d.]+)/i);
-    if (btMatch) {
-        const bt = parseFloat(btMatch[1]);
-        if (bt > vitals.body_temp.max || bt < vitals.body_temp.min) {
-            alerts.push({
-                type: 'vital_abnormal', severity: 'warning',
-                item: '體溫 (BT)', detected: `${bt}°C`,
-                range: `${vitals.body_temp.min}-${vitals.body_temp.max}°C`,
-                message: bt > vitals.body_temp.max ? vitals.body_temp.warning_high : vitals.body_temp.warning_low,
-            });
-        }
+    const bt = text.match(/BT\s*([\d.]+)/i);
+    if (bt) {
+        const val = parseFloat(bt[1]);
+        if (val > v.body_temp.max || val < v.body_temp.min) alerts.push({ type:'vital_abnormal', severity:'warning', item:'體溫', detected:`${val}°C`, range:`${v.body_temp.min}-${v.body_temp.max}°C`, message: val > v.body_temp.max ? v.body_temp.warning_high : v.body_temp.warning_low });
     }
 
     return alerts;
 }
 
-// 頁面載入時初始化
 loadDrugDB();
