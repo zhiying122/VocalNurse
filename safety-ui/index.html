@@ -16,18 +16,18 @@
                 <h1>VoiceNursy</h1>
                 <p class="login-subtitle">護理聲助手 — 隱形的 AI 護理長</p>
                 <div id="login-form" class="login-form">
-                    <div class="form-group"><label>員工編號</label><input type="text" id="login-id" placeholder="請輸入員工編號"></div>
-                    <div class="form-group"><label>密碼</label><input type="password" id="login-pw" placeholder="請輸入密碼"></div>
+                    <div class="form-group"><label for="login-id">員工編號</label><input type="text" id="login-id" placeholder="請輸入員工編號" aria-label="員工編號"></div>
+                    <div class="form-group"><label for="login-pw">密碼</label><input type="password" id="login-pw" placeholder="請輸入密碼" aria-label="密碼"></div>
                     <p id="login-error" class="form-error"></p>
-                    <button class="btn btn-primary btn-large" onclick="doLogin()">登入系統</button>
+                    <button class="btn btn-primary btn-large" onclick="doLogin()" aria-label="登入系統">登入系統</button>
                     <p class="form-switch">還沒有帳號？<a href="#" onclick="showRegister()">立即註冊</a></p>
                 </div>
                 <div id="register-form" class="login-form hidden">
-                    <div class="form-group"><label>員工編號</label><input type="text" id="reg-id" placeholder="例：N001"></div>
-                    <div class="form-group"><label>姓名</label><input type="text" id="reg-name" placeholder="請輸入姓名"></div>
-                    <div class="form-group"><label>密碼</label><input type="password" id="reg-pw" placeholder="請設定密碼"></div>
+                    <div class="form-group"><label for="reg-id">員工編號</label><input type="text" id="reg-id" placeholder="例：N001" aria-label="員工編號"></div>
+                    <div class="form-group"><label for="reg-name">姓名</label><input type="text" id="reg-name" placeholder="請輸入姓名" aria-label="姓名"></div>
+                    <div class="form-group"><label for="reg-pw">密碼</label><input type="password" id="reg-pw" placeholder="請設定密碼" aria-label="密碼"></div>
                     <p id="reg-error" class="form-error"></p>
-                    <button class="btn btn-primary btn-large" onclick="doRegister()">註冊帳號</button>
+                    <button class="btn btn-primary btn-large" onclick="doRegister()" aria-label="註冊帳號">註冊帳號</button>
                     <p class="form-switch">已有帳號？<a href="#" onclick="showLogin()">返回登入</a></p>
                 </div>
                 <p class="login-hint">⚠ 請先啟動後端：cd brain → python -m uvicorn api:app --reload --port 8001</p>
@@ -36,18 +36,19 @@
 
         <!-- 主畫面 -->
         <div id="main-screen" class="screen hidden">
-            <header class="header">
+            <header class="header" role="banner">
                 <div class="header-left"><h1>🏥 VoiceNursy</h1></div>
-                <nav class="header-nav">
-                    <button class="nav-btn active" data-tab="patrol" onclick="switchTab('patrol')">🚶 巡房模式</button>
-                    <button class="nav-btn" data-tab="handover" onclick="switchTab('handover')">📊 交班儀表板</button>
-                    <button class="nav-btn" data-tab="tech" onclick="switchTab('tech')">⚙️ 技術架構</button>
+                <button class="hamburger-btn" style="display:none" onclick="toggleMobileNav()" aria-label="開啟選單">☰</button>
+                <nav class="header-nav" role="navigation" aria-label="主導覽列">
+                    <button class="nav-btn active" data-tab="patrol" onclick="switchTab('patrol')" aria-label="巡房模式">🚶 巡房模式</button>
+                    <button class="nav-btn" data-tab="handover" onclick="switchTab('handover')" aria-label="交班儀表板">📊 交班儀表板</button>
+                    <button class="nav-btn" data-tab="tech" onclick="switchTab('tech')" aria-label="技術架構">⚙️ 技術架構</button>
                 </nav>
                 <div class="header-right">
                     <span id="current-nurse"></span>
                     <span id="current-shift" class="shift-badge">日班</span>
-                    <span id="network-status" class="net-online">🟢 線上</span>
-                    <button class="btn btn-small btn-outline" onclick="doLogout()">登出</button>
+                    <span id="network-status" class="net-online" role="status" aria-label="網路狀態">🟢 線上</span>
+                    <button class="btn btn-small btn-outline" onclick="doLogout()" aria-label="登出">登出</button>
                 </div>
             </header>
 
@@ -56,7 +57,7 @@
                 <div class="patient-bar">
                     <div style="display:flex;justify-content:space-between;align-items:center">
                         <h3>負責病患</h3>
-                        <button class="btn btn-small btn-primary" onclick="showAddPatient()">＋ 新增病患</button>
+                        <button class="btn btn-small btn-primary" onclick="showAddPatient()" aria-label="新增病患">＋ 新增病患</button>
                     </div>
                     <div class="patient-list" id="patient-list">
                         <p style="color:#999;font-size:.85rem">尚無病患，請點「新增病患」</p>
@@ -67,17 +68,17 @@
                 <div id="add-patient-form" class="add-patient-form hidden">
                     <h3>新增病患</h3>
                     <div class="form-row">
-                        <div class="form-group"><label>姓名</label><input type="text" id="pt-name" placeholder="王大明"></div>
-                        <div class="form-group"><label>床號</label><input type="text" id="pt-bed" placeholder="3A-01"></div>
-                        <div class="form-group"><label>年齡</label><input type="number" id="pt-age" placeholder="72"></div>
+                        <div class="form-group"><label for="pt-name">姓名</label><input type="text" id="pt-name" placeholder="王大明" aria-label="病患姓名"></div>
+                        <div class="form-group"><label for="pt-bed">床號</label><input type="text" id="pt-bed" placeholder="3A-01" aria-label="床號"></div>
+                        <div class="form-group"><label for="pt-age">年齡</label><input type="number" id="pt-age" placeholder="72" aria-label="年齡"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group" style="flex:2"><label>診斷</label><input type="text" id="pt-dx" placeholder="右膝關節置換術後 Day 2"></div>
-                        <div class="form-group"><label>過敏藥物（逗號分隔）</label><input type="text" id="pt-allergies" placeholder="Penicillin, Aspirin"></div>
+                        <div class="form-group" style="flex:2"><label for="pt-dx">診斷</label><input type="text" id="pt-dx" placeholder="右膝關節置換術後 Day 2" aria-label="診斷"></div>
+                        <div class="form-group"><label for="pt-allergies">過敏藥物（逗號分隔）</label><input type="text" id="pt-allergies" placeholder="Penicillin, Aspirin" aria-label="過敏藥物"></div>
                     </div>
                     <div style="display:flex;gap:8px">
-                        <button class="btn btn-primary" onclick="submitPatient()">確認新增</button>
-                        <button class="btn btn-secondary" onclick="hideAddPatient()">取消</button>
+                        <button class="btn btn-primary" onclick="submitPatient()" aria-label="確認新增病患">確認新增</button>
+                        <button class="btn btn-secondary" onclick="hideAddPatient()" aria-label="取消新增病患">取消</button>
                     </div>
                 </div>
 
@@ -86,14 +87,14 @@
                     <span id="patient-name" class="patient-name-tag"></span>
                     <span id="patient-bed" class="patient-bed-tag"></span>
                     <span id="patient-dx" class="patient-dx-tag"></span>
-                    <button class="btn btn-small btn-outline" style="margin-left:auto;color:#c62828;border-color:#c62828" onclick="removePatient()">移除</button>
+                    <button class="btn btn-small btn-outline" style="margin-left:auto;color:#c62828;border-color:#c62828" onclick="removePatient()" aria-label="移除病患">移除</button>
                 </div>
 
-                <main class="main-content" id="main-area" style="display:none">
+                <main class="main-content" id="main-area" role="main" style="display:none">
                     <section class="soap-section">
                         <!-- 錄音區：點一下開始，再點一下停止 -->
                         <div class="voice-area">
-                            <button id="record-btn" class="record-btn" onclick="toggleRecording()">
+                            <button id="record-btn" class="record-btn" onclick="toggleRecording()" aria-label="點擊開始錄音">
                                 <span class="record-icon" id="record-icon">🎙️</span>
                                 <span id="record-label">點擊開始錄音</span>
                             </button>
@@ -109,32 +110,32 @@
 
                             <!-- 轉錄結果 -->
                             <div id="transcript-area" class="transcript-area hidden">
-                                <label>語音辨識結果：</label>
-                                <textarea id="transcript-text" rows="2"></textarea>
+                                <label for="transcript-text">語音辨識結果：</label>
+                                <textarea id="transcript-text" rows="2" aria-label="語音辨識結果"></textarea>
                                 <div class="transcript-actions">
-                                    <button class="btn btn-primary" onclick="sendToBrain()">🧠 生成 SOAP</button>
-                                    <button class="btn btn-secondary" onclick="clearTranscript()">清除</button>
+                                    <button class="btn btn-primary" onclick="sendToBrain()" aria-label="生成 SOAP">🧠 生成 SOAP</button>
+                                    <button class="btn btn-secondary" onclick="clearTranscript()" aria-label="清除轉錄文字">清除</button>
                                 </div>
                             </div>
 
                             <details class="manual-input">
                                 <summary>或手動輸入文字</summary>
-                                <textarea id="manual-text" rows="2" placeholder="直接輸入文字..."></textarea>
-                                <button class="btn btn-primary" onclick="sendManualText()">🧠 生成 SOAP</button>
+                                <textarea id="manual-text" rows="2" placeholder="直接輸入文字..." aria-label="手動輸入文字"></textarea>
+                                <button class="btn btn-primary" onclick="sendManualText()" aria-label="手動輸入生成 SOAP">🧠 生成 SOAP</button>
                             </details>
                         </div>
 
                         <div id="processing" class="processing hidden"><div class="spinner"></div><span>AI 正在分析中...</span></div>
 
                         <!-- SOAP 卡片 -->
-                        <div id="soap-cards" class="soap-cards hidden">
-                            <div class="soap-card soap-s"><div class="soap-label">S 主觀</div><div id="soap-s" class="soap-content" contenteditable="true"></div></div>
-                            <div class="soap-card soap-o"><div class="soap-label">O 客觀</div><div id="soap-o" class="soap-content" contenteditable="true"></div></div>
-                            <div class="soap-card soap-a"><div class="soap-label">A 評估</div><div id="soap-a" class="soap-content" contenteditable="true"></div></div>
-                            <div class="soap-card soap-p"><div class="soap-label">P 計畫</div><div id="soap-p" class="soap-content" contenteditable="true"></div></div>
+                        <div id="soap-cards" class="soap-cards hidden" aria-label="SOAP 紀錄內容" aria-live="polite">
+                            <div class="soap-card soap-s"><div class="soap-label">S 主觀</div><div id="soap-s" class="soap-content" contenteditable="true" aria-label="S 主觀資料"></div></div>
+                            <div class="soap-card soap-o"><div class="soap-label">O 客觀</div><div id="soap-o" class="soap-content" contenteditable="true" aria-label="O 客觀資料"></div></div>
+                            <div class="soap-card soap-a"><div class="soap-label">A 評估</div><div id="soap-a" class="soap-content" contenteditable="true" aria-label="A 評估資料"></div></div>
+                            <div class="soap-card soap-p"><div class="soap-label">P 計畫</div><div id="soap-p" class="soap-content" contenteditable="true" aria-label="P 計畫資料"></div></div>
                             <div id="med-section" class="med-section hidden"><h3>💊 藥物</h3><div id="med-list"></div></div>
                             <div id="pain-section" class="pain-section hidden"><h3>😣 疼痛指數</h3><div id="pain-display"></div></div>
-                            <div class="confirm-area"><button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button></div>
+                            <div class="confirm-area"><button class="btn btn-success btn-large" onclick="confirmSave()" aria-label="確認存檔">✅ 確認存檔</button></div>
                         </div>
 
                         <div id="save-ok" class="save-ok hidden"><div class="checkmark-circle"><span>✓</span></div><p>病歷已成功歸檔</p></div>
@@ -142,6 +143,7 @@
 
                     <section class="side-panel">
                         <div class="mini-chart"><h3>疼痛趨勢</h3><canvas id="pain-chart"></canvas></div>
+                        <div class="mini-chart"><h3>給藥時間軸</h3><div id="med-timeline-empty" class="timeline-placeholder">尚無給藥紀錄</div><canvas id="med-timeline" style="display:none"></canvas></div>
                         <div class="timeline-panel"><h3>今日紀錄</h3><div id="timeline"></div></div>
                     </section>
                 </main>
@@ -287,7 +289,7 @@
         </div>
 
         <!-- 警示 -->
-        <div id="alert-overlay" class="alert-overlay hidden">
+        <div id="alert-overlay" class="alert-overlay hidden" role="alert" aria-live="assertive">
             <div class="alert-box">
                 <div class="alert-icon">⚠️</div>
                 <h2 id="alert-title">劑量異常警示</h2>
@@ -297,8 +299,8 @@
                     <div><small>常規範圍</small><strong id="alert-range"></strong></div>
                 </div>
                 <div class="alert-actions">
-                    <button class="btn btn-danger" onclick="ackAlert()">確認知悉並繼續</button>
-                    <button class="btn btn-primary" onclick="editFromAlert()">修改數值</button>
+                    <button class="btn btn-danger" onclick="ackAlert()" aria-label="確認知悉並繼續">確認知悉並繼續</button>
+                    <button class="btn btn-primary" onclick="editFromAlert()" aria-label="修改數值">修改數值</button>
                 </div>
             </div>
         </div>

@@ -79,6 +79,184 @@
       "unit": "mg",
       "route": ["PO"],
       "warning": "注意過敏反應，青黴素過敏者禁用"
+    },
+    {
+      "name": "Warfarin",
+      "aliases": ["華法林", "可邁丁", "Coumadin"],
+      "max_single_dose_mg": 10,
+      "max_daily_dose_mg": 10,
+      "common_dose_mg": 5,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "抗凝血藥物，需定期監測 INR，注意出血風險"
+    },
+    {
+      "name": "Metformin",
+      "aliases": ["美福明", "庫魯化", "Glucophage"],
+      "max_single_dose_mg": 1000,
+      "max_daily_dose_mg": 2550,
+      "common_dose_mg": 500,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "腎功能不全者慎用，注意乳酸中毒風險"
+    },
+    {
+      "name": "Morphine",
+      "aliases": ["嗎啡"],
+      "max_single_dose_mg": 15,
+      "max_daily_dose_mg": 60,
+      "common_dose_mg": 10,
+      "unit": "mg",
+      "route": ["PO", "IV", "IM", "SC"],
+      "warning": "管制藥品，注意呼吸抑制風險，需監測呼吸速率"
+    },
+    {
+      "name": "Tramadol",
+      "aliases": ["特拉乜", "Ultram"],
+      "max_single_dose_mg": 100,
+      "max_daily_dose_mg": 400,
+      "common_dose_mg": 50,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "注意癲癇風險，勿與 SSRI 併用"
+    },
+    {
+      "name": "Ketorolac",
+      "aliases": ["克多炎", "Toradol"],
+      "max_single_dose_mg": 30,
+      "max_daily_dose_mg": 120,
+      "common_dose_mg": 30,
+      "unit": "mg",
+      "route": ["PO", "IV", "IM"],
+      "warning": "NSAIDs 類藥物，使用不超過 5 天，注意腎功能與胃腸道出血"
+    },
+    {
+      "name": "Ibuprofen",
+      "aliases": ["布洛芬", "Advil", "Motrin"],
+      "max_single_dose_mg": 800,
+      "max_daily_dose_mg": 3200,
+      "common_dose_mg": 400,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "NSAIDs 類藥物，注意胃腸道出血與腎功能影響"
+    },
+    {
+      "name": "Ceftriaxone",
+      "aliases": ["頭孢曲松", "Rocephin"],
+      "max_single_dose_mg": 2000,
+      "max_daily_dose_mg": 4000,
+      "common_dose_mg": 1000,
+      "unit": "mg",
+      "route": ["IV", "IM"],
+      "warning": "頭孢類抗生素，注意過敏反應，勿與含鈣溶液同時靜脈輸注"
+    },
+    {
+      "name": "Metoprolol",
+      "aliases": ["美托洛爾", "Betaloc", "舒壓寧"],
+      "max_single_dose_mg": 200,
+      "max_daily_dose_mg": 400,
+      "common_dose_mg": 50,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "β 受體阻斷劑，注意心跳過慢與低血壓"
+    },
+    {
+      "name": "Omeprazole",
+      "aliases": ["奧美拉唑", "Losec"],
+      "max_single_dose_mg": 40,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 20,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "質子幫浦抑制劑，長期使用注意骨質疏鬆與低鎂血症"
+    },
+    {
+      "name": "Insulin",
+      "aliases": ["胰島素", "Humulin", "NovoRapid"],
+      "max_single_dose_mg": 100,
+      "max_daily_dose_mg": 300,
+      "common_dose_mg": 10,
+      "unit": "units",
+      "route": ["SC", "IV"],
+      "warning": "注意低血糖風險，需監測血糖"
+    },
+    {
+      "name": "Heparin",
+      "aliases": ["肝素"],
+      "max_single_dose_mg": 10000,
+      "max_daily_dose_mg": 40000,
+      "common_dose_mg": 5000,
+      "unit": "units",
+      "route": ["IV", "SC"],
+      "warning": "抗凝血藥物，注意出血風險，需監測 aPTT"
+    },
+    {
+      "name": "Digoxin",
+      "aliases": ["地高辛", "毛地黃", "Lanoxin"],
+      "max_single_dose_mg": 0.5,
+      "max_daily_dose_mg": 0.5,
+      "common_dose_mg": 0.25,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "治療窗窄，注意毛地黃中毒，需監測血中濃度與電解質"
+    },
+    {
+      "name": "Prednisone",
+      "aliases": ["潑尼松", "強的松"],
+      "max_single_dose_mg": 60,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 5,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "類固醇藥物，長期使用注意血糖升高、骨質疏鬆、免疫抑制"
+    },
+    {
+      "name": "Ciprofloxacin",
+      "aliases": ["乙乙氟沙星", "速博新", "Cipro"],
+      "max_single_dose_mg": 750,
+      "max_daily_dose_mg": 1500,
+      "common_dose_mg": 500,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "氟喹諾酮類抗生素，注意肌腱斷裂風險，避免與制酸劑同服"
+    }
+  ],
+  "interactions": [
+    {
+      "drug1": "Warfarin",
+      "drug2": "Aspirin",
+      "severity": "critical",
+      "description": "增加出血風險，Warfarin 與 Aspirin 併用可能導致嚴重出血"
+    },
+    {
+      "drug1": "Warfarin",
+      "drug2": "Ibuprofen",
+      "severity": "critical",
+      "description": "NSAIDs 增強 Warfarin 抗凝血效果，顯著增加出血風險"
+    },
+    {
+      "drug1": "Warfarin",
+      "drug2": "Ciprofloxacin",
+      "severity": "critical",
+      "description": "Ciprofloxacin 抑制 Warfarin 代謝，可能導致 INR 異常升高與出血"
+    },
+    {
+      "drug1": "Metformin",
+      "drug2": "Furosemide",
+      "severity": "warning",
+      "description": "Furosemide 可能影響腎功能，增加 Metformin 乳酸中毒風險"
+    },
+    {
+      "drug1": "Digoxin",
+      "drug2": "Furosemide",
+      "severity": "warning",
+      "description": "Furosemide 導致低血鉀，增加 Digoxin 毒性風險"
+    },
+    {
+      "drug1": "Warfarin",
+      "drug2": "Ketorolac",
+      "severity": "critical",
+      "description": "Ketorolac 為強效 NSAIDs，與 Warfarin 併用嚴重增加出血風險"
     }
   ],
   "vital_signs": {

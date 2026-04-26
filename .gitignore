@@ -28,3 +28,6 @@ temp_audio/
 .coverage
 coverage.xml
 htmlcov/
+
+# Node.js
+node_modules/

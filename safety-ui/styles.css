@@ -14,7 +14,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .form-group label{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px;color:#555}
 .form-group input{width:100%;padding:10px 14px;border:2px solid #ddd;border-radius:8px;font-size:1rem}
 .form-group input:focus{border-color:#2d3a8c;outline:none}
-.login-hint{margin-top:16px;font-size:.8rem;color:#999}
+.login-hint{margin-top:16px;font-size:.8rem;color:#666}
 
 /* ── 按鈕 ── */
 .btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.95rem;font-weight:600;transition:all .2s}
@@ -39,7 +39,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 
 /* ── 病患列 ── */
 .patient-bar{padding:12px 24px;background:#fff;border-bottom:1px solid #e0e0e0}
-.patient-bar h3{font-size:.85rem;color:#888;margin-bottom:8px}
+.patient-bar h3{font-size:.85rem;color:#666;margin-bottom:8px}
 .patient-list{display:flex;gap:8px;overflow-x:auto}
 .patient-chip{padding:8px 16px;border-radius:20px;border:2px solid #ddd;cursor:pointer;font-size:.9rem;white-space:nowrap;transition:all .2s;background:#fff}
 .patient-chip:hover{border-color:#2d3a8c}
@@ -73,7 +73,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .transcript-area textarea{width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:.95rem;font-family:inherit;resize:vertical}
 .transcript-area textarea:focus{border-color:#2d3a8c;outline:none}
 .transcript-actions{display:flex;gap:8px;margin-top:8px}
-.manual-input{margin-top:12px;font-size:.85rem;color:#888}
+.manual-input{margin-top:12px;font-size:.85rem;color:#595959}
 .manual-input summary{cursor:pointer}
 .manual-input textarea{width:100%;margin-top:8px;padding:8px;border:1px solid #ddd;border-radius:6px;font-family:inherit}
 
@@ -89,7 +89,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .soap-o{background:#e8f5e9;border-color:#388e3c}
 .soap-a{background:#fff3e0;border-color:#f57c00}
 .soap-p{background:#f3e5f5;border-color:#7b1fa2}
-.soap-label{font-weight:700;font-size:.8rem;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;opacity:.7}
+.soap-label{font-weight:700;font-size:.8rem;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;opacity:.8}
 .soap-content{font-size:.95rem;line-height:1.6;min-height:32px;padding:2px 4px;border-radius:4px}
 .soap-content:focus{background:rgba(255,255,255,.7);outline:2px solid #2d3a8c}
 
@@ -117,6 +117,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 /* ── 側面板 ── */
 .side-panel h3{font-size:.95rem;color:#555;margin-bottom:8px}
 .mini-chart{margin-bottom:20px}
+.timeline-placeholder{color:#666;font-size:.85rem;padding:12px 0}
 .timeline-panel{max-height:400px;overflow-y:auto}
 .tl-item{display:flex;gap:10px;padding:8px 0;border-left:3px solid #2d3a8c;padding-left:14px;margin-left:6px;font-size:.85rem}
 .tl-item.danger{border-color:#c62828}
@@ -131,7 +132,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .alert-box h2{color:#c62828;margin-bottom:8px}
 .alert-detail{display:flex;justify-content:space-around;margin:16px 0;padding:12px;background:#fff3e0;border-radius:8px}
 .alert-detail div{text-align:center}
-.alert-detail small{display:block;color:#888;font-size:.75rem;margin-bottom:2px}
+.alert-detail small{display:block;color:#666;font-size:.75rem;margin-bottom:2px}
 .alert-actions{display:flex;gap:10px;justify-content:center;margin-top:16px}
 
 /* ── 交班儀表板 ── */
@@ -142,7 +143,7 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .stat-card{background:#fff;padding:16px 24px;border-radius:12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);min-width:120px}
 .stat-num{font-size:2rem;font-weight:700;color:#2d3a8c}
 .stat-alert .stat-num{color:#c62828}
-.stat-label{font-size:.8rem;color:#888;margin-top:4px}
+.stat-label{font-size:.8rem;color:#666;margin-top:4px}
 .handover-patients{display:flex;flex-direction:column;gap:12px}
 .ho-patient{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .ho-patient-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
@@ -220,3 +221,40 @@ body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f
 .diff-item.good{background:#f1f8e9;border:1px solid #c8e6c9}
 .diff-item.good h4{color:#2e7d32}
 .diff-item.good li::before{content:"✓ ";color:#2e7d32}
+
+/* ── Warning Banner ── */
+.warning-banner{display:flex;align-items:flex-start;gap:8px;padding:12px 16px;background:#fff8e1;border:1px solid #ffcc02;border-radius:8px;margin-bottom:10px;font-size:.9rem;color:#5d4037}
+
+/* ── Save Failure ── */
+.save-fail{text-align:center;padding:20px;background:#fff5f5;border:1px solid #ffcdd2;border-radius:8px;margin-top:10px;color:#c62828;font-weight:600}
+.warning-banner-icon{font-size:1.2rem;flex-shrink:0;margin-top:2px}
+.warning-banner-content{flex:1}
+.warning-banner-content div{margin-bottom:4px}
+.warning-banner-content div:last-child{margin-bottom:0}
+.warning-banner-close{background:none;border:none;font-size:1.1rem;cursor:pointer;color:#5d4037;padding:0 4px;flex-shrink:0}
+.warning-banner-close:hover{color:#c62828}
+
+/* ── Responsive: Tablet (< 768px) ── */
+@media(max-width:768px){
+    .main-content{grid-template-columns:1fr;gap:12px;padding:12px 16px}
+    .header{flex-wrap:wrap;gap:8px;padding:10px 16px}
+    .header-nav{margin-left:0;order:3;width:100%}
+    .patient-bar{padding:10px 16px}
+    .form-row{flex-direction:column}
+    .summary-stats{flex-wrap:wrap}
+    .stat-card{min-width:100px;flex:1}
+    .tech-flow{flex-wrap:wrap;justify-content:center}
+    .flow-arrow{display:none}
+}
+
+/* ── Responsive: Mobile (< 480px) ── */
+@media(max-width:480px){
+    .header-nav{display:none}
+    .header-nav.nav-open{display:flex;flex-direction:column;gap:4px}
+    .hamburger-btn{display:block!important;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;padding:4px 8px}
+    .record-btn{width:100px;height:100px;min-width:44px;min-height:44px}
+    .alert-box{padding:20px;max-width:95%}
+    .handover-grid{padding:12px 16px}
+    .tech-cards{grid-template-columns:1fr}
+    .diff-grid{grid-template-columns:1fr}
+}
