@@ -265,7 +265,7 @@ function displaySOAP(o) {
         medSec.classList.remove('hidden');
         medList.innerHTML = o.medications.map(m => {
             const d = currentAlerts.some(a=>a.item===m.name);
-            return `<div class="med-item ${d?'danger':''}""><span>${m.name}</span><span>${m.dose||''} ${m.unit||''} ${m.route||''}</span></div>`;
+            return `<div class="med-item ${d?'danger':''}"><span>${m.name}</span><span>${m.dose||''} ${m.unit||''} ${m.route||''}</span></div>`;
         }).join('');
     } else medSec.classList.add('hidden');
     const painSec = document.getElementById('pain-section');

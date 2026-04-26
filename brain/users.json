@@ -1,9 +1,0 @@
-{
-  "22222": {
-    "name": "林芝瑩",
-    "role": "nurse",
-    "password_hash": "9ec4615f57349fb17b5d0df58f147541edad3df6c88b09b5d74239496c12cbf5",
-    "salt": "e0d08c298df4f456a73ecdf4552b6fb6",
-    "created_at": "2026-04-26T07:57:10.164724+00:00"
-  }
-}
