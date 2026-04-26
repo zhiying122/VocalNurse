@@ -8,107 +8,180 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app" class="app-container">
-        <!-- 頂部導航 -->
-        <header class="header">
-            <h1>🏥 VoiceNursy 護理聲助手</h1>
-            <div class="header-info">
-                <span id="nurse-name">護理師：王小明</span>
-                <span id="shift-info">日班 07:00-15:00</span>
-            </div>
-        </header>
-
-        <!-- 警示覆蓋層 -->
-        <div id="alert-overlay" class="alert-overlay hidden">
-            <div class="alert-box">
-                <div class="alert-icon">⚠️</div>
-                <h2>劑量異常警示</h2>
-                <p id="alert-message"></p>
-                <div class="alert-detail">
-                    <span>偵測值：<strong id="alert-detected"></strong></span>
-                    <span>常規範圍：<strong id="alert-range"></strong></span>
+    <div id="app">
+        <!-- ===== 登入畫面 ===== -->
+        <div id="login-screen" class="screen">
+            <div class="login-container">
+                <div class="login-logo">🏥</div>
+                <h1>VoiceNursy</h1>
+                <p class="login-subtitle">護理聲助手 — 隱形的 AI 護理長</p>
+                <div class="login-form">
+                    <div class="form-group">
+                        <label>員工編號</label>
+                        <input type="text" id="login-id" value="N20240001" placeholder="請輸入員工編號">
+                    </div>
+                    <div class="form-group">
+                        <label>密碼</label>
+                        <input type="password" id="login-pw" value="demo1234" placeholder="請輸入密碼">
+                    </div>
+                    <button class="btn btn-primary btn-large" onclick="doLogin()">登入系統</button>
                 </div>
-                <div class="alert-actions">
-                    <button class="btn btn-danger" onclick="acknowledgeAlert()">確認知悉並繼續</button>
-                    <button class="btn btn-primary" onclick="editSOAP()">修改數值</button>
+                <p class="login-hint">Demo 帳號已預填，直接點登入即可</p>
+            </div>
+        </div>
+
+        <!-- ===== 主畫面 ===== -->
+        <div id="main-screen" class="screen hidden">
+            <!-- 頂部導航 -->
+            <header class="header">
+                <div class="header-left">
+                    <h1>🏥 VoiceNursy</h1>
+                </div>
+                <nav class="header-nav">
+                    <button class="nav-btn active" data-tab="patrol" onclick="switchTab('patrol')">🚶 巡房模式</button>
+                    <button class="nav-btn" data-tab="handover" onclick="switchTab('handover')">📊 交班儀表板</button>
+                </nav>
+                <div class="header-right">
+                    <span id="current-nurse">護理師：王小明</span>
+                    <span id="current-shift" class="shift-badge">日班</span>
+                    <button class="btn btn-small btn-outline" onclick="doLogout()">登出</button>
+                </div>
+            </header>
+
+            <!-- ===== 巡房模式 ===== -->
+            <div id="tab-patrol" class="tab-content">
+                <!-- 病患選擇列 -->
+                <div class="patient-bar">
+                    <h3>負責病患</h3>
+                    <div class="patient-list" id="patient-list"></div>
+                </div>
+
+                <!-- 當前病患資訊 -->
+                <div class="patient-info" id="patient-info">
+                    <span id="patient-name" class="patient-name-tag"></span>
+                    <span id="patient-bed" class="patient-bed-tag"></span>
+                    <span id="patient-dx" class="patient-dx-tag"></span>
+                </div>
+
+                <main class="main-content">
+                    <!-- 左側：語音輸入 + SOAP -->
+                    <section class="soap-section">
+                        <!-- 語音錄音區 -->
+                        <div class="voice-area">
+                            <button id="record-btn" class="record-btn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()">
+                                <span class="record-icon" id="record-icon">🎙️</span>
+                                <span id="record-label">按住說話</span>
+                            </button>
+                            <div id="recording-indicator" class="recording-indicator hidden">
+                                <div class="pulse-ring"></div>
+                                <span>錄音中... <span id="record-timer">0s</span></span>
+                            </div>
+                            <div id="transcript-area" class="transcript-area hidden">
+                                <label>語音辨識結果：</label>
+                                <textarea id="transcript-text" rows="2"></textarea>
+                                <div class="transcript-actions">
+                                    <button class="btn btn-primary" onclick="sendToBrain()">🧠 生成 SOAP</button>
+                                    <button class="btn btn-secondary" onclick="clearTranscript()">清除</button>
+                                </div>
+                            </div>
+                            <!-- 手動輸入備用 -->
+                            <details class="manual-input">
+                                <summary>或手動輸入文字</summary>
+                                <textarea id="manual-text" rows="2" placeholder="直接輸入文字..."></textarea>
+                                <button class="btn btn-primary" onclick="sendManualText()">🧠 生成 SOAP</button>
+                            </details>
+                        </div>
+
+                        <!-- 處理中動畫 -->
+                        <div id="processing" class="processing hidden">
+                            <div class="spinner"></div>
+                            <span>AI 正在分析中...</span>
+                        </div>
+
+                        <!-- SOAP 卡片 -->
+                        <div id="soap-cards" class="soap-cards hidden">
+                            <div class="soap-card soap-s">
+                                <div class="soap-label">S 主觀</div>
+                                <div id="soap-s" class="soap-content" contenteditable="true"></div>
+                            </div>
+                            <div class="soap-card soap-o">
+                                <div class="soap-label">O 客觀</div>
+                                <div id="soap-o" class="soap-content" contenteditable="true"></div>
+                            </div>
+                            <div class="soap-card soap-a">
+                                <div class="soap-label">A 評估</div>
+                                <div id="soap-a" class="soap-content" contenteditable="true"></div>
+                            </div>
+                            <div class="soap-card soap-p">
+                                <div class="soap-label">P 計畫</div>
+                                <div id="soap-p" class="soap-content" contenteditable="true"></div>
+                            </div>
+                            <div id="med-section" class="med-section hidden">
+                                <h3>💊 藥物</h3>
+                                <div id="med-list"></div>
+                            </div>
+                            <div id="pain-section" class="pain-section hidden">
+                                <h3>😣 疼痛指數</h3>
+                                <div id="pain-display"></div>
+                            </div>
+                            <div class="confirm-area">
+                                <button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button>
+                            </div>
+                        </div>
+
+                        <!-- 存檔動畫 -->
+                        <div id="save-ok" class="save-ok hidden">
+                            <div class="checkmark-circle"><span>✓</span></div>
+                            <p>病歷已成功歸檔</p>
+                        </div>
+                    </section>
+
+                    <!-- 右側：即時資訊 -->
+                    <section class="side-panel">
+                        <div class="mini-chart">
+                            <h3>疼痛趨勢</h3>
+                            <canvas id="pain-chart"></canvas>
+                        </div>
+                        <div class="timeline-panel">
+                            <h3>今日紀錄</h3>
+                            <div id="timeline"></div>
+                        </div>
+                    </section>
+                </main>
+            </div>
+
+            <!-- ===== 交班儀表板 ===== -->
+            <div id="tab-handover" class="tab-content hidden">
+                <div class="handover-grid">
+                    <div class="handover-summary">
+                        <h2>📋 交班摘要 — <span id="handover-shift">日班 07:00-15:00</span></h2>
+                        <div class="summary-stats">
+                            <div class="stat-card"><div class="stat-num" id="stat-patients">3</div><div class="stat-label">負責病患</div></div>
+                            <div class="stat-card stat-alert"><div class="stat-num" id="stat-alerts">0</div><div class="stat-label">警示次數</div></div>
+                            <div class="stat-card"><div class="stat-num" id="stat-records">0</div><div class="stat-label">SOAP 紀錄</div></div>
+                        </div>
+                    </div>
+                    <div id="handover-patients" class="handover-patients"></div>
                 </div>
             </div>
         </div>
 
-        <!-- 主要內容區 -->
-        <main class="main-content">
-            <!-- 左側：SOAP 卡片 -->
-            <section class="soap-section">
-                <h2>📋 SOAP 護理紀錄</h2>
-
-                <!-- 模擬輸入區 -->
-                <div class="input-area">
-                    <textarea id="raw-input" placeholder="在此輸入或貼上語音轉錄文字（模擬角色 A 的輸出）..."></textarea>
-                    <button class="btn btn-primary" onclick="processInput()">🧠 送出給 AI 處理</button>
-                    <button class="btn btn-secondary" onclick="loadDemo()">📝 載入範例</button>
+        <!-- ===== 警示覆蓋層 ===== -->
+        <div id="alert-overlay" class="alert-overlay hidden">
+            <div class="alert-box">
+                <div class="alert-icon">⚠️</div>
+                <h2>劑量異常警示</h2>
+                <p id="alert-msg"></p>
+                <div class="alert-detail">
+                    <div><small>偵測值</small><strong id="alert-val"></strong></div>
+                    <div><small>常規範圍</small><strong id="alert-range"></strong></div>
                 </div>
-
-                <!-- SOAP 卡片 -->
-                <div id="soap-cards" class="soap-cards hidden">
-                    <div class="soap-card soap-s">
-                        <div class="soap-label">S 主觀</div>
-                        <div id="soap-s" class="soap-content" contenteditable="true"></div>
-                    </div>
-                    <div class="soap-card soap-o">
-                        <div class="soap-label">O 客觀</div>
-                        <div id="soap-o" class="soap-content" contenteditable="true"></div>
-                    </div>
-                    <div class="soap-card soap-a">
-                        <div class="soap-label">A 評估</div>
-                        <div id="soap-a" class="soap-content" contenteditable="true"></div>
-                    </div>
-                    <div class="soap-card soap-p">
-                        <div class="soap-label">P 計畫</div>
-                        <div id="soap-p" class="soap-content" contenteditable="true"></div>
-                    </div>
-
-                    <!-- 藥物資訊 -->
-                    <div id="medications-section" class="medications-section hidden">
-                        <h3>💊 藥物資訊</h3>
-                        <div id="medications-list"></div>
-                    </div>
-
-                    <!-- Pain Scale -->
-                    <div id="pain-section" class="pain-section hidden">
-                        <h3>😣 疼痛指數</h3>
-                        <div id="pain-display" class="pain-display"></div>
-                    </div>
-
-                    <!-- 確認存檔 -->
-                    <div class="confirm-area">
-                        <button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button>
-                    </div>
+                <div class="alert-actions">
+                    <button class="btn btn-danger" onclick="ackAlert()">確認知悉並繼續</button>
+                    <button class="btn btn-primary" onclick="editFromAlert()">修改數值</button>
                 </div>
-
-                <!-- 存檔成功動畫 -->
-                <div id="save-animation" class="save-animation hidden">
-                    <div class="checkmark">✓</div>
-                    <p>病歷已成功歸檔</p>
-                </div>
-            </section>
-
-            <!-- 右側：視覺化儀表板 -->
-            <section class="dashboard-section">
-                <h2>📊 交班儀表板</h2>
-
-                <!-- 疼痛趨勢圖 -->
-                <div class="chart-container">
-                    <h3>疼痛趨勢圖</h3>
-                    <canvas id="pain-chart"></canvas>
-                </div>
-
-                <!-- 給藥時間軸 -->
-                <div class="timeline-container">
-                    <h3>給藥時間軸</h3>
-                    <div id="medication-timeline"></div>
-                </div>
-            </section>
-        </main>
+            </div>
+        </div>
     </div>
 
     <script src="safety_check.js"></script>

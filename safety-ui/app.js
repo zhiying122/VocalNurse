@@ -1,242 +1,336 @@
 /**
- * 主應用邏輯：整合 A（輸入）、B（Brain API）、C（防呆 + UI）
+ * VoiceNursy 主應用 — 完整 Demo 版
+ * 登入 → 選病患 → 語音錄音 → SOAP → 防呆 → 存檔 → 交班
  */
 
-const BRAIN_API_URL = 'http://localhost:8001/brain/process';
+const BRAIN_API = 'http://localhost:8001/brain/process';
+
+// ── 模擬病患資料 ──
+const PATIENTS = [
+    { id: 'P001', name: '王大明', bed: '3A-01', mrn: 'M20240001', dx: '右膝關節置換術後 Day 2', age: 72 },
+    { id: 'P002', name: '李美華', bed: '3A-05', mrn: 'M20240002', dx: '肺炎住院治療 Day 5', age: 58 },
+    { id: 'P003', name: '張阿公', bed: '3A-08', mrn: 'M20240003', dx: '糖尿病足傷口照護', age: 81 },
+];
+
+let currentPatient = null;
 let currentAlerts = [];
-let currentBrainOutput = null;
+let currentOutput = null;
+let allRecords = {};  // patientId -> [{soap, meds, pain, time, alerts}]
+let totalAlerts = 0;
 
-/**
- * 載入範例文字（模擬角色 A 的輸出）
- */
-function loadDemo() {
-    document.getElementById('raw-input').value =
-        '阿公今天傷口發紅，pain scale 4分，BP 140/90，HR 88，BT 37.2，PRN 給一顆 Voren 25mg';
+// ── 初始化 ──
+PATIENTS.forEach(p => { allRecords[p.id] = []; });
+
+// ── 登入 ──
+function doLogin() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('main-screen').classList.remove('hidden');
+    renderPatientList();
+    selectPatient(PATIENTS[0].id);
+    initPainChart();
 }
 
-/**
- * 處理輸入：送給 Brain API → 防呆檢查 → 顯示 SOAP
- */
-async function processInput() {
-    const rawText = document.getElementById('raw-input').value.trim();
-    if (!rawText) {
-        alert('請輸入文字');
-        return;
-    }
+function doLogout() {
+    document.getElementById('main-screen').classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+}
 
-    // 嘗試呼叫 Brain API（角色 B）
-    let brainOutput;
+// ── Tab 切換 ──
+function switchTab(tab) {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    document.getElementById('tab-patrol').classList.toggle('hidden', tab !== 'patrol');
+    document.getElementById('tab-handover').classList.toggle('hidden', tab !== 'handover');
+    if (tab === 'handover') renderHandover();
+}
+
+// ── 病患選擇 ──
+function renderPatientList() {
+    const el = document.getElementById('patient-list');
+    el.innerHTML = PATIENTS.map(p => {
+        const alertCount = allRecords[p.id].reduce((sum, r) => sum + (r.alerts?.length || 0), 0);
+        return `<div class="patient-chip" id="chip-${p.id}" onclick="selectPatient('${p.id}')">
+            ${p.bed} ${p.name}${alertCount > 0 ? `<span class="chip-alert">⚠${alertCount}</span>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function selectPatient(id) {
+    currentPatient = PATIENTS.find(p => p.id === id);
+    document.querySelectorAll('.patient-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById(`chip-${id}`)?.classList.add('active');
+    document.getElementById('patient-name').textContent = `${currentPatient.name}（${currentPatient.age}歲）`;
+    document.getElementById('patient-bed').textContent = currentPatient.bed;
+    document.getElementById('patient-dx').textContent = currentPatient.dx;
+    // 重置 SOAP 區
+    document.getElementById('soap-cards').classList.add('hidden');
+    document.getElementById('save-ok').classList.add('hidden');
+    document.getElementById('processing').classList.add('hidden');
+    // 更新側面板
+    renderTimeline();
+    updatePainChart();
+}
+
+// ── 語音錄音（Web Audio API）──
+let mediaRecorder = null;
+let audioChunks = [];
+let recordTimer = null;
+let recordSeconds = 0;
+
+async function startRecording() {
     try {
-        const res = await fetch(BRAIN_API_URL, {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            handleRecordingComplete();
+        };
+        mediaRecorder.start();
+        recordSeconds = 0;
+        document.getElementById('record-btn').classList.add('recording');
+        document.getElementById('recording-indicator').classList.remove('hidden');
+        recordTimer = setInterval(() => {
+            recordSeconds++;
+            document.getElementById('record-timer').textContent = `${recordSeconds}s`;
+        }, 1000);
+    } catch (e) {
+        console.warn('麥克風無法存取', e);
+        alert('無法存取麥克風，請確認瀏覽器權限。可使用下方手動輸入。');
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        clearInterval(recordTimer);
+        document.getElementById('record-btn').classList.remove('recording');
+        document.getElementById('recording-indicator').classList.add('hidden');
+    }
+}
+
+async function handleRecordingComplete() {
+    // 目前使用模擬 STT（因為瀏覽器端無法直接跑 Whisper）
+    // 實際部署時會將音檔傳到後端 STT 服務
+    const demoTexts = [
+        `${currentPatient?.name || '病患'}今天傷口發紅，pain scale 4分，BP 140/90，HR 88，BT 37.2，PRN 給一顆 Voltaren 25mg`,
+        `${currentPatient?.name || '病患'}主訴頭痛，pain scale 6分，BP 158/95，HR 96，BT 38.1，給 Acetaminophen 500mg PO`,
+        `${currentPatient?.name || '病患'}傷口換藥完成，滲液少量，pain scale 2分，BP 125/80，HR 76，SpO2 98%`,
+    ];
+    const text = demoTexts[Math.floor(Math.random() * demoTexts.length)];
+
+    document.getElementById('transcript-text').value = text;
+    document.getElementById('transcript-area').classList.remove('hidden');
+}
+
+function clearTranscript() {
+    document.getElementById('transcript-text').value = '';
+    document.getElementById('transcript-area').classList.add('hidden');
+}
+
+// ── 送給 Brain ──
+async function sendToBrain() {
+    const text = document.getElementById('transcript-text').value.trim();
+    if (!text) return;
+    await processBrain(text);
+}
+
+function sendManualText() {
+    const text = document.getElementById('manual-text').value.trim();
+    if (!text) return;
+    processBrain(text);
+}
+
+async function processBrain(rawText) {
+    document.getElementById('soap-cards').classList.add('hidden');
+    document.getElementById('save-ok').classList.add('hidden');
+    document.getElementById('processing').classList.remove('hidden');
+
+    let output;
+    try {
+        const res = await fetch(BRAIN_API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ raw_text: rawText }),
         });
-
-        if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
-        brainOutput = await res.json();
+        if (!res.ok) throw new Error(res.status);
+        output = await res.json();
     } catch (e) {
-        console.warn('[App] Brain API 無法連線，使用模擬資料', e.message);
-        brainOutput = generateMockOutput(rawText);
+        console.warn('Brain API 離線，使用模擬', e);
+        output = mockBrain(rawText);
     }
 
-    currentBrainOutput = brainOutput;
+    currentOutput = output;
+    currentAlerts = checkSafety(output);
 
-    // 防呆檢查（角色 C 核心）
-    currentAlerts = checkSafety(brainOutput);
+    document.getElementById('processing').classList.add('hidden');
+    displaySOAP(output);
 
-    // 顯示 SOAP 卡片
-    displaySOAP(brainOutput);
-
-    // 若有警示，觸發紅色警示
-    if (currentAlerts.length > 0) {
-        showAlert(currentAlerts[0]);
-    }
+    if (currentAlerts.length > 0) showAlert(currentAlerts[0]);
 }
 
-/**
- * 顯示 SOAP 卡片
- */
-function displaySOAP(output) {
-    document.getElementById('soap-s').textContent = output.soap.subjective || '（無資料）';
-    document.getElementById('soap-o').textContent = output.soap.objective || '（無資料）';
-    document.getElementById('soap-a').textContent = output.soap.assessment || '（無資料）';
-    document.getElementById('soap-p').textContent = output.soap.plan || '（無資料）';
+// ── 顯示 SOAP ──
+function displaySOAP(o) {
+    document.getElementById('soap-s').textContent = o.soap.subjective || '（無資料）';
+    document.getElementById('soap-o').textContent = o.soap.objective || '（無資料）';
+    document.getElementById('soap-a').textContent = o.soap.assessment || '（無資料）';
+    document.getElementById('soap-p').textContent = o.soap.plan || '（無資料）';
 
-    // 藥物資訊
-    const medSection = document.getElementById('medications-section');
-    const medList = document.getElementById('medications-list');
-    if (output.medications && output.medications.length > 0) {
-        medSection.classList.remove('hidden');
-        medList.innerHTML = output.medications.map(med => {
-            const isDanger = currentAlerts.some(a => a.item === med.name);
-            return `
-                <div class="med-item ${isDanger ? 'danger' : ''}">
-                    <span class="med-name">${med.name}</span>
-                    <span class="med-dose">${med.dose || ''} ${med.unit || ''} ${med.route || ''}</span>
-                </div>
-            `;
+    const medSec = document.getElementById('med-section');
+    const medList = document.getElementById('med-list');
+    if (o.medications?.length) {
+        medSec.classList.remove('hidden');
+        medList.innerHTML = o.medications.map(m => {
+            const danger = currentAlerts.some(a => a.item === m.name);
+            return `<div class="med-item ${danger ? 'danger' : ''}">
+                <span>${m.name}</span><span>${m.dose || ''} ${m.unit || ''} ${m.route || ''}</span>
+            </div>`;
         }).join('');
-    } else {
-        medSection.classList.add('hidden');
-    }
+    } else medSec.classList.add('hidden');
 
-    // Pain Scale
-    const painSection = document.getElementById('pain-section');
-    const painDisplay = document.getElementById('pain-display');
-    if (output.pain_scale !== null && output.pain_scale !== undefined) {
-        painSection.classList.remove('hidden');
-        const score = output.pain_scale;
-        const level = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
-        const color = score >= 7 ? '#c62828' : score >= 4 ? '#f57c00' : '#388e3c';
-        painDisplay.innerHTML = `
-            <div class="pain-number pain-${level}">${score}</div>
-            <div style="flex:1">
-                <div class="pain-bar">
-                    <div class="pain-bar-fill" style="width:${score * 10}%; background:${color}"></div>
-                </div>
-                <small style="color:#888">0 = 無痛 ─── 10 = 劇痛</small>
-            </div>
-        `;
-
-        // 更新趨勢圖
-        const now = new Date();
-        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        addPainDataPoint(timeStr, score);
-    } else {
-        painSection.classList.add('hidden');
-    }
-
-    // 更新時間軸
-    if (output.medications) {
-        const now = new Date();
-        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        for (const med of output.medications) {
-            const isDanger = currentAlerts.some(a => a.item === med.name);
-            addTimelineEvent(timeStr, `${med.name} ${med.dose || ''} ${med.unit || ''} ${med.route || ''}`, isDanger);
-        }
-    }
+    const painSec = document.getElementById('pain-section');
+    if (o.pain_scale != null) {
+        painSec.classList.remove('hidden');
+        const s = o.pain_scale;
+        const lv = s >= 7 ? 'high' : s >= 4 ? 'mid' : 'low';
+        const cl = s >= 7 ? '#c62828' : s >= 4 ? '#f57c00' : '#388e3c';
+        document.getElementById('pain-display').innerHTML = `
+            <div class="pain-num pain-${lv}">${s}</div>
+            <div style="flex:1"><div class="pain-bar"><div class="pain-fill" style="width:${s*10}%;background:${cl}"></div></div>
+            <small style="color:#888">0 無痛 ─── 10 劇痛</small></div>`;
+    } else painSec.classList.add('hidden');
 
     document.getElementById('soap-cards').classList.remove('hidden');
-    document.getElementById('save-animation').classList.add('hidden');
 }
 
-/**
- * 顯示紅色警示覆蓋層
- */
-function showAlert(alert) {
-    document.getElementById('alert-message').textContent = alert.message;
-    document.getElementById('alert-detected').textContent = alert.detected;
-    document.getElementById('alert-range').textContent = alert.range;
+// ── 警示 ──
+function showAlert(a) {
+    document.getElementById('alert-msg').textContent = a.message;
+    document.getElementById('alert-val').textContent = a.detected;
+    document.getElementById('alert-range').textContent = a.range;
     document.getElementById('alert-overlay').classList.remove('hidden');
+    playAlertSound();
+}
+function ackAlert() { document.getElementById('alert-overlay').classList.add('hidden'); }
+function editFromAlert() { ackAlert(); document.getElementById('soap-p').focus(); }
 
-    // 播放提示音
+function playAlertSound() {
     try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 800;
-        gain.gain.value = 0.3;
-        osc.start();
-        setTimeout(() => { osc.stop(); audioCtx.close(); }, 300);
-    } catch (e) { /* 靜音模式 */ }
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(); const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.frequency.value = 800; g.gain.value = 0.3;
+        osc.start(); setTimeout(() => { osc.stop(); ctx.close(); }, 300);
+    } catch(e) {}
 }
 
-/**
- * 確認知悉警示
- */
-function acknowledgeAlert() {
-    document.getElementById('alert-overlay').classList.add('hidden');
-    console.log('[Safety] 護理師確認知悉警示');
-}
-
-/**
- * 修改數值（關閉警示，聚焦到 SOAP 編輯）
- */
-function editSOAP() {
-    document.getElementById('alert-overlay').classList.add('hidden');
-    document.getElementById('soap-p').focus();
-}
-
-/**
- * 確認存檔（含動畫）
- */
+// ── 存檔 ──
 function confirmSave() {
-    // 檢查是否有未處理的警示
-    if (currentAlerts.length > 0) {
-        const confirmed = confirm('此紀錄有安全警示，確定要存檔嗎？');
-        if (!confirmed) return;
-    }
+    if (!currentOutput || !currentPatient) return;
+    const now = new Date();
+    const time = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+    allRecords[currentPatient.id].push({
+        soap: currentOutput.soap,
+        medications: currentOutput.medications,
+        pain_scale: currentOutput.pain_scale,
+        alerts: currentAlerts,
+        time,
+        raw: currentOutput.raw_text,
+    });
+    totalAlerts += currentAlerts.length;
 
     document.getElementById('soap-cards').classList.add('hidden');
-    document.getElementById('save-animation').classList.remove('hidden');
+    document.getElementById('save-ok').classList.remove('hidden');
+    document.getElementById('transcript-area').classList.add('hidden');
 
-    console.log('[存檔] 病歷已歸檔', currentBrainOutput);
+    renderTimeline();
+    updatePainChart();
+    renderPatientList();
 
-    // 3 秒後重置
     setTimeout(() => {
-        document.getElementById('save-animation').classList.add('hidden');
-        document.getElementById('raw-input').value = '';
-        currentAlerts = [];
-        currentBrainOutput = null;
-    }, 3000);
+        document.getElementById('save-ok').classList.add('hidden');
+    }, 2500);
 }
 
-/**
- * 模擬 Brain 輸出（當 API 無法連線時使用）
- */
-function generateMockOutput(rawText) {
+// ── 側面板時間軸 ──
+function renderTimeline() {
+    if (!currentPatient) return;
+    const records = allRecords[currentPatient.id];
+    const el = document.getElementById('timeline');
+    if (!records.length) { el.innerHTML = '<p style="color:#999;font-size:.85rem">尚無紀錄</p>'; return; }
+    el.innerHTML = records.map(r => {
+        const danger = r.alerts?.length > 0;
+        const meds = r.medications?.map(m => `${m.name} ${m.dose||''} ${m.unit||''}`).join(', ') || '';
+        return `<div class="tl-item ${danger?'danger':''}">
+            <span class="tl-time">${r.time}</span>
+            <span>${meds || r.soap.plan || '護理紀錄'}${danger?' ⚠️':''}</span>
+        </div>`;
+    }).reverse().join('');
+}
+
+// ── 模擬 Brain 輸出 ──
+function mockBrain(text) {
+    const pain = text.match(/pain\s*scale\s*(\d+)/i);
+    const bp = text.match(/BP\s*(\d+\/\d+)/i);
+    const hr = text.match(/HR\s*(\d+)/i);
+    const bt = text.match(/BT\s*([\d.]+)/i);
+    const spo2 = text.match(/SpO2\s*(\d+)/i);
+
+    const objParts = [];
+    if (bp) objParts.push(`BP ${bp[1]} mmHg`);
+    if (hr) objParts.push(`HR ${hr[1]} bpm`);
+    if (bt) objParts.push(`BT ${bt[1]}°C`);
+    if (spo2) objParts.push(`SpO2 ${spo2[1]}%`);
+
+    const meds = [];
+    const medPattern = /(Acetaminophen|Voltaren|Voren|Aspirin|普拿疼|Amlodipine)\s*(\d+)?\s*(mg|顆)?/gi;
+    let m;
+    while ((m = medPattern.exec(text)) !== null) {
+        meds.push({ name: m[1], dose: m[2]||null, unit: m[3]||'mg', route: text.match(/PRN/i)?'PRN':'PO', raw: m[0] });
+    }
+
     return {
         soap: {
-            subjective: rawText.includes('痛') ? '病患主訴疼痛' : '',
-            objective: extractObjective(rawText),
-            assessment: '持續觀察中',
-            plan: rawText,
+            subjective: text.includes('痛') || text.includes('頭') ? '病患主訴疼痛不適' : '病患無特殊主訴',
+            objective: objParts.join(', ') || text,
+            assessment: pain && parseInt(pain[1]) >= 4 ? '疼痛控制需持續評估' : '目前狀況穩定',
+            plan: meds.length ? `依醫囑給予 ${meds.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')}` : '持續觀察',
         },
-        medications: extractMedications(rawText),
-        pain_scale: extractPainScale(rawText),
+        medications: meds,
+        pain_scale: pain ? parseInt(pain[1]) : null,
         warnings: [],
-        raw_text: rawText,
+        raw_text: text,
     };
 }
 
-function extractObjective(text) {
-    const parts = [];
-    const bp = text.match(/BP\s*\d+\/\d+/i);
-    const hr = text.match(/HR\s*\d+/i);
-    const bt = text.match(/BT\s*[\d.]+/i);
-    const spo2 = text.match(/SpO2\s*\d+/i);
-    if (bp) parts.push(bp[0]);
-    if (hr) parts.push(hr[0]);
-    if (bt) parts.push(bt[0]);
-    if (spo2) parts.push(spo2[0]);
-    return parts.join(', ');
-}
+// ── 交班儀表板 ──
+function renderHandover() {
+    const totalRecords = Object.values(allRecords).reduce((s, r) => s + r.length, 0);
+    document.getElementById('stat-patients').textContent = PATIENTS.length;
+    document.getElementById('stat-alerts').textContent = totalAlerts;
+    document.getElementById('stat-records').textContent = totalRecords;
 
-function extractMedications(text) {
-    const meds = [];
-    const patterns = [
-        /(\w+)\s+(\d+)\s*(mg|g|ml)/gi,
-        /(普拿疼|Voren|Aspirin|Voltaren)\s*(\d+)?\s*(mg|顆)?/gi,
-    ];
-    for (const pat of patterns) {
-        let match;
-        while ((match = pat.exec(text)) !== null) {
-            meds.push({
-                name: match[1],
-                dose: match[2] || null,
-                unit: match[3] || null,
-                route: text.includes('PRN') ? 'PRN' : 'PO',
-                raw: match[0],
-            });
-        }
-    }
-    return meds;
-}
-
-function extractPainScale(text) {
-    const match = text.match(/pain\s*scale\s*(\d+)/i);
-    return match ? parseInt(match[1]) : null;
+    const container = document.getElementById('handover-patients');
+    container.innerHTML = PATIENTS.map(p => {
+        const records = allRecords[p.id];
+        const alertCount = records.reduce((s, r) => s + (r.alerts?.length || 0), 0);
+        return `<div class="ho-patient">
+            <div class="ho-patient-header">
+                <span class="ho-patient-name">${p.name}（${p.age}歲）${alertCount > 0 ? ' ⚠️' : ''}</span>
+                <span class="ho-patient-bed">${p.bed} | ${p.dx}</span>
+            </div>
+            <div class="ho-records">
+                ${records.length ? records.map(r => `
+                    <div class="ho-record ${r.alerts?.length ? 'has-alert' : ''}">
+                        <strong>${r.time}</strong> — 
+                        Pain: ${r.pain_scale ?? '-'} | 
+                        ${r.medications?.map(m => `${m.name} ${m.dose||''}${m.unit||''}`).join(', ') || '無給藥'}
+                        ${r.alerts?.length ? ' ⚠️ 有警示' : ''}
+                    </div>
+                `).join('') : '<div class="ho-record">尚無紀錄</div>'}
+            </div>
+        </div>`;
+    }).join('');
 }

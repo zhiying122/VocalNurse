@@ -2,6 +2,7 @@
 FastAPI 端點：供 A 呼叫傳入 raw_text，回傳結構化 JSON 給 C
 """
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from schemas import STTInput, BrainOutput
 from brain import process
 
@@ -9,6 +10,13 @@ app = FastAPI(
     title="VoiceNursy Brain Layer",
     description="接收語音轉錄文字，輸出結構化 SOAP JSON",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

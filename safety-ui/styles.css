@@ -1,158 +1,155 @@
-/* ── 全域 ── */
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
-    background: #f0f4f8;
-    color: #1a1a2e;
-}
+/* ── Reset ── */
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;background:#f0f4f8;color:#1a1a2e}
+.hidden{display:none!important}
+.screen{min-height:100vh}
 
-.app-container { max-width: 1400px; margin: 0 auto; padding: 16px; }
-
-/* ── Header ── */
-.header {
-    display: flex; justify-content: space-between; align-items: center;
-    background: #2d3a8c; color: white; padding: 16px 24px; border-radius: 12px;
-    margin-bottom: 20px;
-}
-.header h1 { font-size: 1.4rem; }
-.header-info { display: flex; gap: 20px; font-size: 0.9rem; opacity: 0.9; }
-
-/* ── 主內容 ── */
-.main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 900px) { .main-content { grid-template-columns: 1fr; } }
-
-.soap-section, .dashboard-section {
-    background: white; border-radius: 12px; padding: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-.soap-section h2, .dashboard-section h2 {
-    font-size: 1.2rem; margin-bottom: 16px; color: #2d3a8c;
-}
-
-/* ── 輸入區 ── */
-.input-area { margin-bottom: 20px; }
-.input-area textarea {
-    width: 100%; height: 80px; padding: 12px; border: 2px solid #ddd;
-    border-radius: 8px; font-size: 1rem; resize: vertical;
-    font-family: inherit;
-}
-.input-area textarea:focus { border-color: #2d3a8c; outline: none; }
-.input-area { display: flex; flex-direction: column; gap: 8px; }
-.input-area .btn { align-self: flex-start; }
+/* ── 登入 ── */
+.login-container{max-width:380px;margin:0 auto;padding-top:12vh;text-align:center}
+.login-logo{font-size:4rem;margin-bottom:8px}
+.login-container h1{font-size:2rem;color:#2d3a8c;margin-bottom:4px}
+.login-subtitle{color:#666;margin-bottom:32px}
+.login-form{background:#fff;padding:28px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:left}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.85rem;font-weight:600;margin-bottom:4px;color:#555}
+.form-group input{width:100%;padding:10px 14px;border:2px solid #ddd;border-radius:8px;font-size:1rem}
+.form-group input:focus{border-color:#2d3a8c;outline:none}
+.login-hint{margin-top:16px;font-size:.8rem;color:#999}
 
 /* ── 按鈕 ── */
-.btn {
-    padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;
-    font-size: 0.95rem; font-weight: 600; transition: all 0.2s;
-}
-.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-.btn-primary { background: #2d3a8c; color: white; }
-.btn-secondary { background: #e8eaf6; color: #2d3a8c; }
-.btn-success { background: #2e7d32; color: white; }
-.btn-danger { background: #c62828; color: white; }
-.btn-large { padding: 14px 32px; font-size: 1.1rem; width: 100%; }
+.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.95rem;font-weight:600;transition:all .2s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.btn-primary{background:#2d3a8c;color:#fff}
+.btn-secondary{background:#e8eaf6;color:#2d3a8c}
+.btn-success{background:#2e7d32;color:#fff}
+.btn-danger{background:#c62828;color:#fff}
+.btn-outline{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;padding:6px 14px;font-size:.8rem}
+.btn-large{padding:14px 32px;font-size:1.1rem;width:100%}
+.btn-small{padding:6px 12px;font-size:.8rem}
+
+/* ── Header ── */
+.header{display:flex;align-items:center;gap:16px;background:#2d3a8c;color:#fff;padding:12px 24px;position:sticky;top:0;z-index:100}
+.header-left h1{font-size:1.2rem;white-space:nowrap}
+.header-nav{display:flex;gap:4px;margin-left:24px}
+.nav-btn{background:rgba(255,255,255,.1);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:500;transition:all .2s}
+.nav-btn.active{background:rgba(255,255,255,.25)}
+.nav-btn:hover{background:rgba(255,255,255,.2)}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:.85rem}
+.shift-badge{background:#ff9800;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:700}
+
+/* ── 病患列 ── */
+.patient-bar{padding:12px 24px;background:#fff;border-bottom:1px solid #e0e0e0}
+.patient-bar h3{font-size:.85rem;color:#888;margin-bottom:8px}
+.patient-list{display:flex;gap:8px;overflow-x:auto}
+.patient-chip{padding:8px 16px;border-radius:20px;border:2px solid #ddd;cursor:pointer;font-size:.9rem;white-space:nowrap;transition:all .2s;background:#fff}
+.patient-chip:hover{border-color:#2d3a8c}
+.patient-chip.active{background:#2d3a8c;color:#fff;border-color:#2d3a8c}
+.patient-chip .chip-alert{color:#c62828;font-weight:700;margin-left:4px}
+.patient-info{padding:8px 24px;background:#e8eaf6;display:flex;gap:12px;align-items:center;font-size:.9rem}
+.patient-name-tag{font-weight:700;color:#2d3a8c}
+.patient-bed-tag{background:#fff;padding:2px 10px;border-radius:4px;font-size:.8rem}
+.patient-dx-tag{color:#666;font-size:.85rem}
+
+/* ── 主內容 ── */
+.main-content{display:grid;grid-template-columns:1fr 380px;gap:16px;padding:16px 24px}
+@media(max-width:1000px){.main-content{grid-template-columns:1fr}}
+.soap-section,.side-panel{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+
+/* ── 語音錄音 ── */
+.voice-area{text-align:center;margin-bottom:20px}
+.record-btn{width:120px;height:120px;border-radius:50%;border:4px solid #2d3a8c;background:#fff;cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;transition:all .2s;user-select:none;-webkit-user-select:none}
+.record-btn:active,.record-btn.recording{background:#c62828;border-color:#c62828;transform:scale(1.1)}
+.record-btn:active .record-icon,.record-btn.recording .record-icon{filter:grayscale(0)}
+.record-btn:active #record-label,.record-btn.recording #record-label{color:#fff}
+.record-icon{font-size:2.5rem}
+#record-label{font-size:.8rem;color:#2d3a8c;margin-top:4px;font-weight:600}
+.recording-indicator{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;color:#c62828;font-weight:600}
+.pulse-ring{width:12px;height:12px;background:#c62828;border-radius:50%;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+
+/* ── 轉錄區 ── */
+.transcript-area{margin-top:16px;text-align:left}
+.transcript-area label{font-size:.85rem;color:#666;display:block;margin-bottom:4px}
+.transcript-area textarea{width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:.95rem;font-family:inherit;resize:vertical}
+.transcript-area textarea:focus{border-color:#2d3a8c;outline:none}
+.transcript-actions{display:flex;gap:8px;margin-top:8px}
+.manual-input{margin-top:12px;font-size:.85rem;color:#888}
+.manual-input summary{cursor:pointer}
+.manual-input textarea{width:100%;margin-top:8px;padding:8px;border:1px solid #ddd;border-radius:6px;font-family:inherit}
+
+/* ── 處理中 ── */
+.processing{display:flex;align-items:center;justify-content:center;gap:12px;padding:32px;color:#2d3a8c;font-weight:600}
+.spinner{width:28px;height:28px;border:3px solid #e0e0e0;border-top-color:#2d3a8c;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── SOAP 卡片 ── */
-.soap-cards { display: flex; flex-direction: column; gap: 12px; }
-.soap-card {
-    border-radius: 8px; padding: 14px; border-left: 5px solid;
-}
-.soap-s { background: #e3f2fd; border-color: #1976d2; }
-.soap-o { background: #e8f5e9; border-color: #388e3c; }
-.soap-a { background: #fff3e0; border-color: #f57c00; }
-.soap-p { background: #f3e5f5; border-color: #7b1fa2; }
-.soap-label {
-    font-weight: 700; font-size: 0.85rem; margin-bottom: 6px;
-    text-transform: uppercase; letter-spacing: 1px;
-}
-.soap-content {
-    font-size: 0.95rem; line-height: 1.6; min-height: 40px;
-    padding: 4px; border-radius: 4px;
-}
-.soap-content:focus { background: rgba(255,255,255,0.7); outline: 2px solid #2d3a8c; }
+.soap-cards{display:flex;flex-direction:column;gap:10px}
+.soap-card{border-radius:8px;padding:12px 14px;border-left:5px solid}
+.soap-s{background:#e3f2fd;border-color:#1976d2}
+.soap-o{background:#e8f5e9;border-color:#388e3c}
+.soap-a{background:#fff3e0;border-color:#f57c00}
+.soap-p{background:#f3e5f5;border-color:#7b1fa2}
+.soap-label{font-weight:700;font-size:.8rem;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;opacity:.7}
+.soap-content{font-size:.95rem;line-height:1.6;min-height:32px;padding:2px 4px;border-radius:4px}
+.soap-content:focus{background:rgba(255,255,255,.7);outline:2px solid #2d3a8c}
 
-/* ── 藥物資訊 ── */
-.medications-section { margin-top: 16px; }
-.medications-section h3 { font-size: 1rem; margin-bottom: 8px; }
-.med-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 12px; background: #f5f5f5; border-radius: 6px; margin-bottom: 6px;
-}
-.med-item.danger { background: #ffebee; border: 2px solid #c62828; }
-.med-name { font-weight: 600; }
-.med-dose { color: #555; }
-
-/* ── Pain Scale ── */
-.pain-section { margin-top: 16px; }
-.pain-display {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px; background: #f5f5f5; border-radius: 8px;
-}
-.pain-number {
-    font-size: 2rem; font-weight: 700; width: 60px; height: 60px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 50%;
-}
-.pain-low { background: #c8e6c9; color: #2e7d32; }
-.pain-mid { background: #fff9c4; color: #f57f17; }
-.pain-high { background: #ffcdd2; color: #c62828; }
-.pain-bar { flex: 1; height: 12px; background: #ddd; border-radius: 6px; overflow: hidden; }
-.pain-bar-fill { height: 100%; border-radius: 6px; transition: width 0.5s; }
+/* ── 藥物 & Pain ── */
+.med-section,.pain-section{margin-top:12px}
+.med-section h3,.pain-section h3{font-size:.95rem;margin-bottom:6px}
+.med-item{display:flex;justify-content:space-between;padding:6px 10px;background:#f5f5f5;border-radius:6px;margin-bottom:4px;font-size:.9rem}
+.med-item.danger{background:#ffebee;border:2px solid #c62828}
+.pain-display{display:flex;align-items:center;gap:12px;padding:10px;background:#f5f5f5;border-radius:8px}
+.pain-num{font-size:1.8rem;font-weight:700;width:50px;height:50px;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.pain-low{background:#c8e6c9;color:#2e7d32}
+.pain-mid{background:#fff9c4;color:#f57f17}
+.pain-high{background:#ffcdd2;color:#c62828}
+.pain-bar{flex:1;height:10px;background:#ddd;border-radius:5px;overflow:hidden}
+.pain-fill{height:100%;border-radius:5px;transition:width .5s}
 
 /* ── 確認存檔 ── */
-.confirm-area { margin-top: 20px; }
+.confirm-area{margin-top:16px}
+.save-ok{text-align:center;padding:40px;animation:fadeIn .5s}
+.checkmark-circle{width:80px;height:80px;border:4px solid #2e7d32;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;animation:scaleIn .5s}
+.checkmark-circle span{font-size:2.5rem;color:#2e7d32}
+@keyframes scaleIn{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
-/* ── 存檔動畫 ── */
-.save-animation {
-    text-align: center; padding: 40px;
-    animation: fadeIn 0.5s ease;
-}
-.checkmark {
-    font-size: 4rem; color: #2e7d32; width: 100px; height: 100px;
-    border: 4px solid #2e7d32; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 16px; animation: scaleIn 0.5s ease;
-}
-@keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* ── 側面板 ── */
+.side-panel h3{font-size:.95rem;color:#555;margin-bottom:8px}
+.mini-chart{margin-bottom:20px}
+.timeline-panel{max-height:400px;overflow-y:auto}
+.tl-item{display:flex;gap:10px;padding:8px 0;border-left:3px solid #2d3a8c;padding-left:14px;margin-left:6px;font-size:.85rem}
+.tl-item.danger{border-color:#c62828}
+.tl-time{font-weight:600;color:#2d3a8c;min-width:50px}
+.tl-item.danger .tl-time{color:#c62828}
 
-/* ── 警示覆蓋層 ── */
-.alert-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(198, 40, 40, 0.15); z-index: 1000;
-    display: flex; align-items: center; justify-content: center;
-    animation: flashBorder 0.5s ease infinite alternate;
-}
-@keyframes flashBorder {
-    from { box-shadow: inset 0 0 0 8px rgba(198,40,40,0.6); }
-    to { box-shadow: inset 0 0 0 8px rgba(198,40,40,0.2); }
-}
-.alert-box {
-    background: white; border-radius: 16px; padding: 32px;
-    max-width: 480px; width: 90%; text-align: center;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-}
-.alert-icon { font-size: 3rem; margin-bottom: 12px; }
-.alert-box h2 { color: #c62828; margin-bottom: 12px; }
-.alert-detail {
-    display: flex; justify-content: space-around; margin: 16px 0;
-    padding: 12px; background: #fff3e0; border-radius: 8px;
-}
-.alert-actions { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+/* ── 警示 ── */
+.alert-overlay{position:fixed;inset:0;background:rgba(198,40,40,.15);z-index:1000;display:flex;align-items:center;justify-content:center;animation:flashBg .5s ease infinite alternate}
+@keyframes flashBg{from{box-shadow:inset 0 0 0 8px rgba(198,40,40,.6)}to{box-shadow:inset 0 0 0 8px rgba(198,40,40,.15)}}
+.alert-box{background:#fff;border-radius:16px;padding:28px;max-width:440px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.alert-icon{font-size:3rem;margin-bottom:8px}
+.alert-box h2{color:#c62828;margin-bottom:8px}
+.alert-detail{display:flex;justify-content:space-around;margin:16px 0;padding:12px;background:#fff3e0;border-radius:8px}
+.alert-detail div{text-align:center}
+.alert-detail small{display:block;color:#888;font-size:.75rem;margin-bottom:2px}
+.alert-actions{display:flex;gap:10px;justify-content:center;margin-top:16px}
 
-/* ── 圖表 ── */
-.chart-container { margin-bottom: 24px; }
-.chart-container h3 { font-size: 1rem; margin-bottom: 8px; color: #555; }
-
-/* ── 時間軸 ── */
-.timeline-container h3 { font-size: 1rem; margin-bottom: 12px; color: #555; }
-.timeline-item {
-    display: flex; gap: 12px; padding: 10px 0;
-    border-left: 3px solid #2d3a8c; padding-left: 16px; margin-left: 8px;
-}
-.timeline-time { font-weight: 600; color: #2d3a8c; min-width: 60px; }
-.timeline-content { font-size: 0.9rem; }
-.timeline-item.danger { border-color: #c62828; }
-.timeline-item.danger .timeline-time { color: #c62828; }
-
-.hidden { display: none !important; }
+/* ── 交班儀表板 ── */
+.handover-grid{padding:20px 24px}
+.handover-summary{margin-bottom:20px}
+.handover-summary h2{font-size:1.2rem;color:#2d3a8c;margin-bottom:12px}
+.summary-stats{display:flex;gap:12px}
+.stat-card{background:#fff;padding:16px 24px;border-radius:12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06);min-width:120px}
+.stat-num{font-size:2rem;font-weight:700;color:#2d3a8c}
+.stat-alert .stat-num{color:#c62828}
+.stat-label{font-size:.8rem;color:#888;margin-top:4px}
+.handover-patients{display:flex;flex-direction:column;gap:12px}
+.ho-patient{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.ho-patient-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.ho-patient-name{font-weight:700;font-size:1.1rem}
+.ho-patient-bed{font-size:.85rem;color:#666}
+.ho-records{display:flex;flex-direction:column;gap:6px}
+.ho-record{padding:8px 12px;background:#f5f5f5;border-radius:6px;font-size:.85rem;border-left:3px solid #2d3a8c}
+.ho-record.has-alert{border-color:#c62828;background:#fff5f5}
+.ho-vitals{margin-top:8px}
+.ho-vitals canvas{max-height:150px}
