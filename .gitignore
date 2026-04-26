@@ -1,4 +1,4 @@
-# 環境變數（含 API key，絕對不能推上去）
+# 環境變數
 .env
 brain/.env
 
@@ -9,8 +9,22 @@ __pycache__/
 .venv/
 venv/
 
+# 運行時資料（每台電腦不同）
+brain/users.json
+brain/patients.json
+
 # 暫存音檔
 *.wav
 *.mp3
 *.m4a
+*.webm
 temp_*
+temp_audio/
+
+# IDE
+.vscode/
+
+# 測試覆蓋率
+.coverage
+coverage.xml
+htmlcov/

@@ -1,0 +1,92 @@
+{
+  "drugs": [
+    {
+      "name": "Acetaminophen",
+      "aliases": ["普拿疼", "Panadol", "百服寧"],
+      "max_single_dose_mg": 1000,
+      "max_daily_dose_mg": 4000,
+      "common_dose_mg": 500,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "單次劑量超過 1000mg 或每日超過 4000mg 可能導致肝損傷"
+    },
+    {
+      "name": "Voltaren",
+      "aliases": ["Voren", "Diclofenac", "服他寧"],
+      "max_single_dose_mg": 75,
+      "max_daily_dose_mg": 150,
+      "common_dose_mg": 25,
+      "unit": "mg",
+      "route": ["PO", "IM", "PR"],
+      "warning": "超過常規劑量可能導致胃腸道出血"
+    },
+    {
+      "name": "Aspirin",
+      "aliases": ["阿斯匹靈", "伯基"],
+      "max_single_dose_mg": 1000,
+      "max_daily_dose_mg": 4000,
+      "common_dose_mg": 100,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "高劑量可能導致胃出血，注意抗凝血交互作用"
+    },
+    {
+      "name": "Amlodipine",
+      "aliases": ["脈優", "Norvasc"],
+      "max_single_dose_mg": 10,
+      "max_daily_dose_mg": 10,
+      "common_dose_mg": 5,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "超過 10mg/day 可能導致嚴重低血壓"
+    },
+    {
+      "name": "Furosemide",
+      "aliases": ["服樂泄", "Lasix"],
+      "max_single_dose_mg": 80,
+      "max_daily_dose_mg": 600,
+      "common_dose_mg": 40,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "高劑量需監測電解質，注意低血鉀風險"
+    },
+    {
+      "name": "Nexium",
+      "aliases": ["耐適恩", "Esomeprazole"],
+      "max_single_dose_mg": 40,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 40,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "長期使用可能增加骨折風險"
+    },
+    {
+      "name": "Ampicillin",
+      "aliases": ["安比西林"],
+      "max_single_dose_mg": 2000,
+      "max_daily_dose_mg": 12000,
+      "common_dose_mg": 500,
+      "unit": "mg",
+      "route": ["PO", "IV", "IM"],
+      "warning": "注意過敏反應，青黴素過敏者禁用"
+    },
+    {
+      "name": "Amoxicillin",
+      "aliases": ["阿莫西林", "安莫西林"],
+      "max_single_dose_mg": 1000,
+      "max_daily_dose_mg": 3000,
+      "common_dose_mg": 500,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "注意過敏反應，青黴素過敏者禁用"
+    }
+  ],
+  "vital_signs": {
+    "systolic_bp": { "min": 90, "max": 180, "unit": "mmHg", "warning_high": "收縮壓過高，注意高血壓危象", "warning_low": "收縮壓過低，注意休克風險" },
+    "diastolic_bp": { "min": 60, "max": 110, "unit": "mmHg", "warning_high": "舒張壓過高", "warning_low": "舒張壓過低" },
+    "heart_rate": { "min": 50, "max": 120, "unit": "bpm", "warning_high": "心跳過快", "warning_low": "心跳過慢" },
+    "body_temp": { "min": 35.0, "max": 38.5, "unit": "°C", "warning_high": "發燒", "warning_low": "體溫過低" },
+    "spo2": { "min": 94, "max": 100, "unit": "%", "warning_high": "", "warning_low": "血氧過低，注意呼吸衰竭" },
+    "respiratory_rate": { "min": 12, "max": 24, "unit": "次/分", "warning_high": "呼吸過快", "warning_low": "呼吸過慢" }
+  }
+}
