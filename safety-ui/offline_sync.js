@@ -158,7 +158,8 @@ window.addEventListener('offline', () => {
 function updateNetworkStatus(isOnline) {
     const indicator = document.getElementById('network-status');
     if (indicator) {
-        indicator.textContent = isOnline ? '🟢 線上' : '🔴 離線';
+        indicator.textContent = isOnline ? '● 線上' : '● 離線';
+        indicator.className = isOnline ? 'net-online' : 'net-offline';
         indicator.className = isOnline ? 'net-online' : 'net-offline';
     }
 }

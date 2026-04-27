@@ -7,5 +7,25 @@
     "dx": "便祕",
     "age": 16,
     "allergies": []
+  },
+  {
+    "id": "P900D04",
+    "name": "黃朝曦",
+    "bed": "4A-03",
+    "mrn": "M621FF9E6",
+    "dx": "大拇指骨折",
+    "age": 58,
+    "allergies": [
+      "ibuprofen"
+    ]
+  },
+  {
+    "id": "P38A56C",
+    "name": "陳懷恩",
+    "bed": "ICU-06",
+    "mrn": "M59794C0E",
+    "dx": "急性闌尾炎",
+    "age": 52,
+    "allergies": []
   }
 ]

@@ -128,8 +128,9 @@ async function submitPatient() {
         const res = await fetchWithTimeout(`${API}/patients`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,bed,dx,age,allergies}) });
         if (!res.ok) throw new Error('新增失敗');
         hideAddPatient();
-        ['pt-name','pt-bed','pt-age','pt-dx','pt-allergies'].forEach(id => document.getElementById(id).value = '');
+        ['pt-name','pt-bed','pt-age','pt-dx','pt-allergies','pt-note'].forEach(id => document.getElementById(id).value = '');
         await loadPatients();
+        showToast(`✓ 已成功新增病患「${name}」`);
     } catch(e) { alert('新增病患失敗：' + e.message); }
 }
 
@@ -359,7 +360,7 @@ function dismissWarningBanner() {
 }
 
 function showAlert(a) {
-    document.getElementById('alert-title').textContent = a.type === 'allergy' ? '⛔ 過敏原警示' : '劑量異常警示';
+    document.getElementById('alert-title').textContent = a.type === 'allergy' ? '過敏原警示' : '劑量異常警示';
     document.getElementById('alert-msg').textContent = a.message;
     document.getElementById('alert-val').textContent = a.detected;
     document.getElementById('alert-range').textContent = a.range;
@@ -553,4 +554,100 @@ function renderHandover() {
 function toggleMobileNav() {
     const nav = document.querySelector('.header-nav');
     nav.classList.toggle('nav-open');
+}
+
+// ══════════════════════════════════════
+// 即時時鐘
+// ══════════════════════════════════════
+function updateClock() {
+    const el = document.getElementById('header-clock');
+    if (!el) return;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = (now.getMonth() + 1).toString().padStart(2, '0');
+    const d = now.getDate().toString().padStart(2, '0');
+    const h = now.getHours().toString().padStart(2, '0');
+    const min = now.getMinutes().toString().padStart(2, '0');
+    const s = now.getSeconds().toString().padStart(2, '0');
+    el.textContent = `${y}/${m}/${d} ${h}:${min}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ══════════════════════════════════════
+// 操作紀錄 (Audit Log)
+// ══════════════════════════════════════
+let auditLogs = [];
+
+function addAuditLog(action, detail) {
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    const nurse = currentUser ? currentUser.name : '未知';
+    auditLogs.unshift({ timestamp, nurse, action, detail });
+    renderAuditLog();
+}
+
+function renderAuditLog() {
+    const el = document.getElementById('audit-log');
+    const countEl = document.getElementById('audit-count');
+    if (!el) return;
+    if (countEl) countEl.textContent = `${auditLogs.length} 筆`;
+    if (!auditLogs.length) {
+        el.innerHTML = '<div class="audit-empty">尚無操作紀錄</div>';
+        return;
+    }
+    el.innerHTML = auditLogs.slice(0, 50).map(log =>
+        `<div class="audit-item"><span class="audit-time">${log.timestamp}</span><span class="audit-nurse">${log.nurse}</span><span class="audit-action">${log.action}</span><span class="audit-detail">${log.detail}</span></div>`
+    ).join('');
+}
+
+// Hook into existing functions to log actions
+const _origConfirmSave = confirmSave;
+confirmSave = function() {
+    _origConfirmSave();
+    if (currentPatient && currentOutput) {
+        const meds = currentOutput.medications?.map(m => m.name).join(', ') || '無';
+        addAuditLog('存檔 SOAP', `病患：${currentPatient.name} | 藥物：${meds}`);
+    }
+};
+
+const _origDoLogin = doLogin;
+doLogin = async function() {
+    await _origDoLogin();
+    if (currentUser) {
+        addAuditLog('登入系統', `員工：${currentUser.name}`);
+    }
+};
+
+const _origSubmitPatient = submitPatient;
+submitPatient = async function() {
+    const name = document.getElementById('pt-name').value.trim();
+    const bed = document.getElementById('pt-bed').value.trim();
+    await _origSubmitPatient();
+    if (name && bed) {
+        addAuditLog('新增病患', `${name}（${bed}）`);
+    }
+};
+
+const _origRemovePatient = removePatient;
+removePatient = async function() {
+    const name = currentPatient?.name || '';
+    const bed = currentPatient?.bed || '';
+    await _origRemovePatient();
+    if (name) {
+        addAuditLog('移除病患', `${name}（${bed}）`);
+    }
+};
+
+/* ── Toast 通知 ── */
+function showToast(message, duration = 2500) {
+    const el = document.createElement('div');
+    el.className = 'toast-notify';
+    el.textContent = message;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => {
+        el.classList.remove('show');
+        el.addEventListener('transitionend', () => el.remove());
+    }, duration);
 }
