@@ -570,6 +570,17 @@ function updateClock() {
     const min = now.getMinutes().toString().padStart(2, '0');
     const s = now.getSeconds().toString().padStart(2, '0');
     el.textContent = `${y}/${m}/${d} ${h}:${min}:${s}`;
+
+    // 自動偵測班別
+    const shiftEl = document.getElementById('current-shift');
+    if (shiftEl) {
+        const hour = now.getHours();
+        let shiftText;
+        if (hour >= 8 && hour < 16) shiftText = '日班';
+        else if (hour >= 16 && hour < 24) shiftText = '小夜班';
+        else shiftText = '大夜班';
+        shiftEl.textContent = shiftText;
+    }
 }
 setInterval(updateClock, 1000);
 updateClock();
