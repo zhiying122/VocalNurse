@@ -13,6 +13,7 @@ venv/
 brain/users.json
 brain/patients.json
 brain/records.json
+brain/auth_log.json
 
 # 測試框架快取
 .hypothesis/

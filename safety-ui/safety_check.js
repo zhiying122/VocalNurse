@@ -1,5 +1,11 @@
 /**
- * 防呆邏輯：劑量超標 + 過敏原連動 + 生命徵象異常
+ * 防呆邏輯：劑量超標 + 過敏原連動 + 生命徵象異常 + 藥物交互作用
+ *
+ * 本模組是 VoiceNursy 安全防呆引擎的核心，負責：
+ * 1. 藥物劑量檢查（單次劑量 + 每日累積劑量）
+ * 2. 過敏原交叉比對（直接匹配 + NSAIDs 類別 + Penicillin 交叉過敏）
+ * 3. 生命徵象異常偵測（BP/HR/SpO2/BT/RR，支援中英文格式）
+ * 4. 藥物交互作用檢查（兩兩比對所有處方藥物）
  */
 let drugSafetyDB = null;
 
@@ -23,7 +29,7 @@ function checkSafety(brainOutput, patientRecords) {
             if (ddAlert) alerts.push(ddAlert);
         }
 
-        // Check drug interactions across all medications (once, not per-medication)
+        // 藥物交互作用檢查（所有藥物兩兩比對，只執行一次）
         const diAlerts = checkDrugInteractions(brainOutput.medications, drugSafetyDB);
         alerts.push(...diAlerts);
     }
@@ -107,19 +113,17 @@ function checkDailyDose(medication, patientRecords, drugDB) {
     const currentDose = parseDose(medication.dose, medication.unit);
     if (currentDose === null) return null;
 
-    // Sum today's doses for the same drug
+    // 加總今日同藥物的累積劑量
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     let dailyTotal = currentDose;
 
     if (patientRecords && patientRecords.length) {
         for (const record of patientRecords) {
-            // Check if record is from today
             const recordDate = record.date || (record.time ? new Date().toISOString().slice(0, 10) : null);
             if (recordDate !== today) continue;
 
             if (record.medications) {
                 for (const med of record.medications) {
-                    // Match by name or aliases
                     const medName = med.name.toLowerCase();
                     const infoName = info.name.toLowerCase();
                     const infoAliases = info.aliases.map(a => a.toLowerCase());
@@ -185,7 +189,7 @@ function checkDrugInteractions(medications, drugDB) {
                         range: '禁止或需謹慎併用',
                         message: interaction.description
                     });
-                    break; // Only one interaction per pair
+                    break; // 每對藥物只產生一個交互作用警示
                 }
             }
         }
@@ -193,45 +197,106 @@ function checkDrugInteractions(medications, drugDB) {
     return alerts;
 }
 
+/**
+ * 生命徵象異常檢查
+ *
+ * 支援多種格式的生命徵象輸入（中英文混合）：
+ * - 血壓：BP 140/90, BP: 140/90, BP：140/90, BP140/90, BP 140/90 mmHg, 血壓 140/90
+ * - 心率：HR 88, HR: 88, HR：88, 心率 88, 心跳 88
+ * - 體溫：BT 38.5, BT: 38.5, 體溫 38.5, T 38.5
+ * - 血氧：SpO2 95, SpO2: 95, 血氧 95
+ * - 呼吸：RR 22, RR: 22, 呼吸 22
+ */
 function checkVitalSigns(text) {
     const alerts = [];
+    if (!drugSafetyDB || !drugSafetyDB.vital_signs) return alerts;
     const v = drugSafetyDB.vital_signs;
 
-    const bp = text.match(/BP\s*(\d+)\s*\/\s*(\d+)/i);
+    // ── 血壓（Blood Pressure）──
+    // 支援格式：BP 140/90, BP: 140/90, BP：140/90, BP140/90, BP 140/90 mmHg, 血壓 140/90
+    const bpPattern = /(?:BP|血壓)\s*[：:]?\s*(\d+)\s*\/\s*(\d+)(?:\s*mmHg)?/i;
+    const bp = text.match(bpPattern);
     if (bp) {
         const sys = parseInt(bp[1]);
-        if (sys > v.systolic_bp.max) alerts.push({ type:'vital_abnormal', severity:'critical', item:'收縮壓', detected:`${sys} mmHg`, range:`${v.systolic_bp.min}-${v.systolic_bp.max} mmHg`, message:v.systolic_bp.warning_high });
-        else if (sys < v.systolic_bp.min) alerts.push({ type:'vital_abnormal', severity:'critical', item:'收縮壓', detected:`${sys} mmHg`, range:`${v.systolic_bp.min}-${v.systolic_bp.max} mmHg`, message:v.systolic_bp.warning_low });
+        const dia = parseInt(bp[2]);
+        // 收縮壓檢查
+        if (sys > v.systolic_bp.max) {
+            alerts.push({ type:'vital_abnormal', severity:'critical', item:'收縮壓',
+                detected:`${sys} mmHg`, range:`${v.systolic_bp.min}-${v.systolic_bp.max} mmHg`,
+                message:v.systolic_bp.warning_high });
+        } else if (sys < v.systolic_bp.min) {
+            alerts.push({ type:'vital_abnormal', severity:'critical', item:'收縮壓',
+                detected:`${sys} mmHg`, range:`${v.systolic_bp.min}-${v.systolic_bp.max} mmHg`,
+                message:v.systolic_bp.warning_low });
+        }
+        // 舒張壓檢查
+        if (dia > v.diastolic_bp.max) {
+            alerts.push({ type:'vital_abnormal', severity:'warning', item:'舒張壓',
+                detected:`${dia} mmHg`, range:`${v.diastolic_bp.min}-${v.diastolic_bp.max} mmHg`,
+                message:v.diastolic_bp.warning_high });
+        } else if (dia < v.diastolic_bp.min) {
+            alerts.push({ type:'vital_abnormal', severity:'warning', item:'舒張壓',
+                detected:`${dia} mmHg`, range:`${v.diastolic_bp.min}-${v.diastolic_bp.max} mmHg`,
+                message:v.diastolic_bp.warning_low });
+        }
     }
 
-    const hr = text.match(/HR\s*(\d+)/i);
-    if (hr) { const val=parseInt(hr[1]); if(val>v.heart_rate.max||val<v.heart_rate.min) alerts.push({ type:'vital_abnormal', severity:'warning', item:'心跳', detected:`${val} bpm`, range:`${v.heart_rate.min}-${v.heart_rate.max} bpm`, message:val>v.heart_rate.max?v.heart_rate.warning_high:v.heart_rate.warning_low }); }
+    // ── 心率（Heart Rate）──
+    // 支援格式：HR 88, HR: 88, HR：88, 心率 88, 心跳 88
+    const hrPattern = /(?:HR|心率|心跳)\s*[：:]?\s*(\d+)/i;
+    const hr = text.match(hrPattern);
+    if (hr) {
+        const val = parseInt(hr[1]);
+        if (val > v.heart_rate.max || val < v.heart_rate.min) {
+            alerts.push({ type:'vital_abnormal', severity:'warning', item:'心跳',
+                detected:`${val} bpm`, range:`${v.heart_rate.min}-${v.heart_rate.max} bpm`,
+                message: val > v.heart_rate.max ? v.heart_rate.warning_high : v.heart_rate.warning_low });
+        }
+    }
 
-    const spo2 = text.match(/SpO2\s*(\d+)/i);
-    if (spo2) { const val=parseInt(spo2[1]); if(val<v.spo2.min) alerts.push({ type:'vital_abnormal', severity:'critical', item:'血氧', detected:`${val}%`, range:`≥ ${v.spo2.min}%`, message:v.spo2.warning_low }); }
+    // ── 血氧（SpO2）──
+    // 支援格式：SpO2 95, SpO2: 95, SpO2：95, 血氧 95
+    const spo2Pattern = /(?:SpO2|血氧)\s*[：:]?\s*(\d+)/i;
+    const spo2 = text.match(spo2Pattern);
+    if (spo2) {
+        const val = parseInt(spo2[1]);
+        if (val < v.spo2.min) {
+            alerts.push({ type:'vital_abnormal', severity:'critical', item:'血氧',
+                detected:`${val}%`, range:`≥ ${v.spo2.min}%`,
+                message:v.spo2.warning_low });
+        }
+    }
 
-    const bt = text.match(/BT\s*([\d.]+)/i);
-    if (bt) { const val=parseFloat(bt[1]); if(val>v.body_temp.max||val<v.body_temp.min) alerts.push({ type:'vital_abnormal', severity:'warning', item:'體溫', detected:`${val}°C`, range:`${v.body_temp.min}-${v.body_temp.max}°C`, message:val>v.body_temp.max?v.body_temp.warning_high:v.body_temp.warning_low }); }
+    // ── 體溫（Body Temperature）──
+    // 支援格式：BT 38.5, BT: 38.5, BT：38.5, 體溫 38.5, T 38.5（T 後面必須接數字避免誤判）
+    const btPattern = /(?:BT|體溫)\s*[：:]?\s*([\d.]+)|(?:^|\s)T\s*[：:]?\s*([\d.]+)/i;
+    const bt = text.match(btPattern);
+    if (bt) {
+        const val = parseFloat(bt[1] || bt[2]);
+        if (!isNaN(val) && (val > v.body_temp.max || val < v.body_temp.min)) {
+            alerts.push({ type:'vital_abnormal', severity:'warning', item:'體溫',
+                detected:`${val}°C`, range:`${v.body_temp.min}-${v.body_temp.max}°C`,
+                message: val > v.body_temp.max ? v.body_temp.warning_high : v.body_temp.warning_low });
+        }
+    }
 
-    const rr = text.match(/RR\s*(\d+)/i);
+    // ── 呼吸速率（Respiratory Rate）──
+    // 支援格式：RR 22, RR: 22, RR：22, 呼吸 22
+    const rrPattern = /(?:RR|呼吸)\s*[：:]?\s*(\d+)/i;
+    const rr = text.match(rrPattern);
     if (rr) {
         const val = parseInt(rr[1]);
         if (val > v.respiratory_rate.max || val < v.respiratory_rate.min) {
-            alerts.push({
-                type: 'vital_abnormal',
-                severity: 'warning',
-                item: '呼吸速率',
-                detected: `${val} 次/分`,
-                range: `${v.respiratory_rate.min}-${v.respiratory_rate.max} 次/分`,
-                message: val > v.respiratory_rate.max ? v.respiratory_rate.warning_high : v.respiratory_rate.warning_low
-            });
+            alerts.push({ type:'vital_abnormal', severity:'warning', item:'呼吸速率',
+                detected:`${val} 次/分`, range:`${v.respiratory_rate.min}-${v.respiratory_rate.max} 次/分`,
+                message: val > v.respiratory_rate.max ? v.respiratory_rate.warning_high : v.respiratory_rate.warning_low });
         }
     }
 
     return alerts;
 }
 
-// Only auto-load in browser environment (skip in Node.js/test environment)
+// 只在瀏覽器環境自動載入藥物資料庫（Node.js 測試環境跳過）
 if (typeof window !== 'undefined') {
     loadDrugDB();
 }

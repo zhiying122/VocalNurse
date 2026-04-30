@@ -92,7 +92,7 @@
     },
     {
       "name": "Metformin",
-      "aliases": ["美福明", "庫魯化", "Glucophage"],
+      "aliases": ["美福明", "庫魯化", "Glucophage", "降血糖"],
       "max_single_dose_mg": 1000,
       "max_daily_dose_mg": 2550,
       "common_dose_mg": 500,
@@ -112,13 +112,13 @@
     },
     {
       "name": "Tramadol",
-      "aliases": ["特拉乜", "Ultram"],
+      "aliases": ["特拉乜", "Ultram", "止痛"],
       "max_single_dose_mg": 100,
       "max_daily_dose_mg": 400,
       "common_dose_mg": 50,
       "unit": "mg",
       "route": ["PO", "IV"],
-      "warning": "注意癲癇風險，勿與 SSRI 併用"
+      "warning": "注意癲癇風險，勿與 SSRI 併用（血清素症候群風險）"
     },
     {
       "name": "Ketorolac",
@@ -152,7 +152,7 @@
     },
     {
       "name": "Metoprolol",
-      "aliases": ["美托洛爾", "Betaloc", "舒壓寧"],
+      "aliases": ["美托洛爾", "Betaloc", "舒壓寧", "心律不整"],
       "max_single_dose_mg": 200,
       "max_daily_dose_mg": 400,
       "common_dose_mg": 50,
@@ -162,7 +162,7 @@
     },
     {
       "name": "Omeprazole",
-      "aliases": ["奧美拉唑", "Losec"],
+      "aliases": ["奧美拉唑", "Losec", "胃藥"],
       "max_single_dose_mg": 40,
       "max_daily_dose_mg": 80,
       "common_dose_mg": 20,
@@ -182,7 +182,7 @@
     },
     {
       "name": "Heparin",
-      "aliases": ["肝素"],
+      "aliases": ["肝素", "抗凝血"],
       "max_single_dose_mg": 10000,
       "max_daily_dose_mg": 40000,
       "common_dose_mg": 5000,
@@ -212,13 +212,153 @@
     },
     {
       "name": "Ciprofloxacin",
-      "aliases": ["乙乙氟沙星", "速博新", "Cipro"],
+      "aliases": ["乙乙氟沙星", "速博新", "Cipro", "抗生素"],
       "max_single_dose_mg": 750,
       "max_daily_dose_mg": 1500,
       "common_dose_mg": 500,
       "unit": "mg",
       "route": ["PO", "IV"],
       "warning": "氟喹諾酮類抗生素，注意肌腱斷裂風險，避免與制酸劑同服"
+    },
+    {
+      "name": "Atorvastatin",
+      "aliases": ["阿托伐他汀", "立普妥", "Lipitor", "降血脂"],
+      "max_single_dose_mg": 80,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 20,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "Statin 類降血脂藥，注意肝功能異常與橫紋肌溶解症"
+    },
+    {
+      "name": "Clopidogrel",
+      "aliases": ["克洛匹格", "保栓通", "Plavix", "抗血小板"],
+      "max_single_dose_mg": 300,
+      "max_daily_dose_mg": 300,
+      "common_dose_mg": 75,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "抗血小板藥物，注意出血風險，手術前需停藥"
+    },
+    {
+      "name": "Lisinopril",
+      "aliases": ["利欣諾普", "捷賜瑞", "Zestril", "降血壓"],
+      "max_single_dose_mg": 40,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 10,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "ACE 抑制劑，注意乾咳副作用與高血鉀風險，孕婦禁用"
+    },
+    {
+      "name": "Vancomycin",
+      "aliases": ["萬古黴素", "穩可信"],
+      "max_single_dose_mg": 2000,
+      "max_daily_dose_mg": 4000,
+      "common_dose_mg": 1000,
+      "unit": "mg",
+      "route": ["IV"],
+      "warning": "糖肽類抗生素，注意腎毒性與耳毒性，需監測血中濃度"
+    },
+    {
+      "name": "Prednisolone",
+      "aliases": ["潑尼松龍", "普力朗", "類固醇"],
+      "max_single_dose_mg": 60,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 5,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "類固醇藥物，長期使用注意血糖升高、骨質疏鬆、腎上腺抑制"
+    },
+    {
+      "name": "Diazepam",
+      "aliases": ["地西泮", "煩寧", "Valium", "鎮靜"],
+      "max_single_dose_mg": 10,
+      "max_daily_dose_mg": 40,
+      "common_dose_mg": 5,
+      "unit": "mg",
+      "route": ["PO", "IV", "IM"],
+      "warning": "苯二氮平類鎮靜劑，管制藥品，注意呼吸抑制與依賴性"
+    },
+    {
+      "name": "Phenytoin",
+      "aliases": ["苯妥英", "乙內醯脲", "Dilantin", "抗癲癇"],
+      "max_single_dose_mg": 300,
+      "max_daily_dose_mg": 600,
+      "common_dose_mg": 100,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "抗癲癇藥物，治療窗窄，需監測血中濃度，注意牙齦增生"
+    },
+    {
+      "name": "Lithium",
+      "aliases": ["鋰鹽", "Lithobid"],
+      "max_single_dose_mg": 600,
+      "max_daily_dose_mg": 1800,
+      "common_dose_mg": 300,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "情緒穩定劑，治療窗窄，需定期監測血中鋰濃度與腎功能"
+    },
+    {
+      "name": "Fluoxetine",
+      "aliases": ["氟西汀", "百憂解", "Prozac"],
+      "max_single_dose_mg": 80,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 20,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "SSRI 抗憂鬱藥，注意血清素症候群風險，勿與 MAOIs 併用"
+    },
+    {
+      "name": "Sertraline",
+      "aliases": ["舍曲林", "樂復得", "Zoloft"],
+      "max_single_dose_mg": 200,
+      "max_daily_dose_mg": 200,
+      "common_dose_mg": 50,
+      "unit": "mg",
+      "route": ["PO"],
+      "warning": "SSRI 抗憂鬱藥，注意血清素症候群風險，勿與 Tramadol 併用"
+    },
+    {
+      "name": "Gentamicin",
+      "aliases": ["乙乙黴素", "健大黴素"],
+      "max_single_dose_mg": 240,
+      "max_daily_dose_mg": 480,
+      "common_dose_mg": 80,
+      "unit": "mg",
+      "route": ["IV", "IM"],
+      "warning": "氨基糖苷類抗生素，注意腎毒性與耳毒性，需監測血中濃度"
+    },
+    {
+      "name": "Enoxaparin",
+      "aliases": ["依諾肝素", "克立生", "Clexane"],
+      "max_single_dose_mg": 150,
+      "max_daily_dose_mg": 300,
+      "common_dose_mg": 40,
+      "unit": "mg",
+      "route": ["SC"],
+      "warning": "低分子量肝素，注意出血風險，腎功能不全者需調整劑量"
+    },
+    {
+      "name": "Pantoprazole",
+      "aliases": ["泮托拉唑", "保衛康", "Protonix"],
+      "max_single_dose_mg": 80,
+      "max_daily_dose_mg": 80,
+      "common_dose_mg": 40,
+      "unit": "mg",
+      "route": ["PO", "IV"],
+      "warning": "質子幫浦抑制劑，長期使用注意骨質疏鬆與低鎂血症"
+    },
+    {
+      "name": "Lorazepam",
+      "aliases": ["勞拉西泮", "安定文", "Ativan"],
+      "max_single_dose_mg": 4,
+      "max_daily_dose_mg": 10,
+      "common_dose_mg": 1,
+      "unit": "mg",
+      "route": ["PO", "IV", "IM"],
+      "warning": "苯二氮平類鎮靜劑，管制藥品，注意呼吸抑制與嗜睡"
     }
   ],
   "interactions": [
@@ -257,6 +397,120 @@
       "drug2": "Ketorolac",
       "severity": "critical",
       "description": "Ketorolac 為強效 NSAIDs，與 Warfarin 併用嚴重增加出血風險"
+    },
+    {
+      "drug1": "Lisinopril",
+      "drug2": "Ibuprofen",
+      "severity": "warning",
+      "description": "ACE 抑制劑與 NSAIDs 併用可能損害腎功能，降低降血壓效果"
+    },
+    {
+      "drug1": "Lisinopril",
+      "drug2": "Ketorolac",
+      "severity": "warning",
+      "description": "ACE 抑制劑與 NSAIDs 併用可能損害腎功能，降低降血壓效果"
+    },
+    {
+      "drug1": "Fluoxetine",
+      "drug2": "Tramadol",
+      "severity": "critical",
+      "description": "SSRI 與 Tramadol 併用可能導致血清素症候群（發燒、肌肉僵硬、意識混亂）"
+    },
+    {
+      "drug1": "Sertraline",
+      "drug2": "Tramadol",
+      "severity": "critical",
+      "description": "SSRI 與 Tramadol 併用可能導致血清素症候群（發燒、肌肉僵硬、意識混亂）"
+    },
+    {
+      "drug1": "Clopidogrel",
+      "drug2": "Omeprazole",
+      "severity": "warning",
+      "description": "Omeprazole 抑制 CYP2C19，降低 Clopidogrel 抗血小板效果，增加血栓風險"
+    },
+    {
+      "drug1": "Insulin",
+      "drug2": "Metoprolol",
+      "severity": "warning",
+      "description": "β 受體阻斷劑可能掩蓋低血糖症狀（心悸、顫抖），延誤低血糖處置"
+    },
+    {
+      "drug1": "Phenytoin",
+      "drug2": "Omeprazole",
+      "severity": "warning",
+      "description": "Omeprazole 抑制 Phenytoin 代謝，可能導致 Phenytoin 血中濃度升高與毒性"
+    },
+    {
+      "drug1": "Heparin",
+      "drug2": "Ibuprofen",
+      "severity": "critical",
+      "description": "Heparin 與 NSAIDs 併用顯著增加出血風險"
+    },
+    {
+      "drug1": "Heparin",
+      "drug2": "Ketorolac",
+      "severity": "critical",
+      "description": "Heparin 與 NSAIDs 併用顯著增加出血風險"
+    },
+    {
+      "drug1": "Morphine",
+      "drug2": "Diazepam",
+      "severity": "critical",
+      "description": "鴉片類藥物與苯二氮平類併用可能導致嚴重呼吸抑制，甚至死亡"
+    },
+    {
+      "drug1": "Metoprolol",
+      "drug2": "Amlodipine",
+      "severity": "warning",
+      "description": "β 受體阻斷劑與鈣離子通道阻斷劑併用可能導致嚴重低血壓與心跳過慢"
+    },
+    {
+      "drug1": "Vancomycin",
+      "drug2": "Furosemide",
+      "severity": "warning",
+      "description": "Vancomycin 與 Furosemide 併用增加腎毒性與耳毒性風險"
+    },
+    {
+      "drug1": "Prednisolone",
+      "drug2": "Ibuprofen",
+      "severity": "warning",
+      "description": "類固醇與 NSAIDs 併用顯著增加胃腸道出血風險"
+    },
+    {
+      "drug1": "Prednisolone",
+      "drug2": "Aspirin",
+      "severity": "warning",
+      "description": "類固醇與 NSAIDs 併用顯著增加胃腸道出血風險"
+    },
+    {
+      "drug1": "Tramadol",
+      "drug2": "Diazepam",
+      "severity": "critical",
+      "description": "Tramadol 與苯二氮平類併用可能導致中樞神經過度抑制與呼吸抑制"
+    },
+    {
+      "drug1": "Lithium",
+      "drug2": "Ibuprofen",
+      "severity": "critical",
+      "description": "NSAIDs 減少鋰的腎臟排泄，可能導致鋰中毒（噁心、震顫、意識混亂）"
+    },
+    {
+      "drug1": "Lithium",
+      "drug2": "Ketorolac",
+      "severity": "critical",
+      "description": "NSAIDs 減少鋰的腎臟排泄，可能導致鋰中毒"
+    },
+    {
+      "drug1": "Vancomycin",
+      "drug2": "Gentamicin",
+      "severity": "warning",
+      "description": "兩種藥物併用增加腎毒性與耳毒性風險，需密切監測腎功能"
+    },
+    {
+      "drug1": "Heparin",
+      "drug2": "Aspirin",
+      "severity": "critical",
+      "description": "Heparin 與 Aspirin 併用顯著增加出血風險"
     }
   ],
   "vital_signs": {

@@ -68,6 +68,10 @@
                         <h3>負責病患</h3>
                         <button class="btn btn-small btn-primary" onclick="showAddPatient()">＋ 新增病患</button>
                     </div>
+                    <!-- 【Item 15】病患搜尋輸入框 -->
+                    <div style="margin:8px 0">
+                        <input type="text" id="patient-search" placeholder="搜尋病患（姓名、床號、診斷）" oninput="searchPatients(this.value)" style="width:100%;padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:.85rem;font-family:inherit;background:var(--bg);" aria-label="搜尋病患">
+                    </div>
                     <div class="patient-list" id="patient-list"><p style="color:var(--text-muted);font-size:.85rem">尚無病患，請點「新增病患」</p></div>
                 </div>
                 <div id="add-patient-form" class="add-patient-form hidden">
@@ -105,6 +109,8 @@
                             <div id="recording-indicator" class="recording-indicator hidden">
                                 <div class="pulse-ring"></div>
                                 <span>錄音中... <span id="record-timer">0s</span>（再點一下停止）</span>
+                                <!-- 【Item 14】暫停/恢復錄音按鈕 -->
+                                <button id="pause-btn" class="btn btn-small btn-secondary hidden" onclick="togglePauseRecording()" style="margin-left:12px">⏸ 暫停</button>
                             </div>
                             <div class="mode-toggle"><label><input type="checkbox" id="auto-mode" checked> 一站式模式（錄音完自動生成 SOAP）</label></div>
                             <div id="transcript-area" class="transcript-area hidden">
@@ -128,7 +134,12 @@
                             <div class="soap-card soap-p"><div class="soap-label">P 計畫</div><div id="soap-p" class="soap-content" contenteditable="true" role="textbox" aria-label="計畫"></div></div>
                             <div id="med-section" class="med-section hidden"><h3>💊 藥物</h3><div id="med-list"></div></div>
                             <div id="pain-section" class="pain-section hidden"><h3>疼痛指數</h3><div id="pain-display"></div></div>
-                            <div class="confirm-area"><button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button></div>
+                            <div class="confirm-area">
+                                <!-- 【Item 12】編輯/儲存修改按鈕 -->
+                                <button id="edit-record-btn" class="btn btn-secondary" onclick="enableRecordEdit()" style="margin-right:8px">✏️ 編輯</button>
+                                <button id="save-edit-btn" class="btn btn-primary hidden" onclick="saveRecordEdit()" style="margin-right:8px">💾 儲存修改</button>
+                                <button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button>
+                            </div>
                         </div>
                         <div id="save-ok" class="save-ok hidden"><div class="checkmark-circle"><span>✓</span></div><p>病歷已成功歸檔</p></div>
                     </section>
@@ -145,7 +156,11 @@
             <div id="tab-handover" class="tab-content hidden">
                 <div class="handover-grid">
                     <div class="handover-summary">
-                        <h2>交班摘要</h2>
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <h2>交班摘要</h2>
+                            <!-- 【Item 11】列印交班報告按鈕 -->
+                            <button class="btn btn-small btn-secondary" onclick="printHandover()" id="print-handover-btn">🖨️ 列印交班報告</button>
+                        </div>
                         <div class="summary-stats">
                             <div class="stat-card"><div class="stat-num" id="stat-patients">0</div><div class="stat-label">負責病患</div></div>
                             <div class="stat-card stat-alert"><div class="stat-num" id="stat-alerts">0</div><div class="stat-label">警示次數</div></div>

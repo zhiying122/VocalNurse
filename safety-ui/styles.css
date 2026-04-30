@@ -1971,12 +1971,28 @@ body {
 }
 
 /* ══════════════════════════════════════
-   列印樣式
+   列印樣式（交班報告列印用）
+   【Item 11】隱藏導覽列、側邊欄，只顯示交班報告內容
    ══════════════════════════════════════ */
 @media print {
+  /* 隱藏不需要列印的元素 */
   .header, .record-btn, .recording-indicator, .mode-toggle,
   .manual-input, .confirm-area, .alert-overlay, .btn,
-  .audit-log-section, .hamburger-btn { display: none !important; }
+  .audit-log-section, .hamburger-btn,
+  .patient-bar, .patient-info, .add-patient-form,
+  .side-panel, .voice-area, .transcript-area,
+  .processing, .soap-section, .save-ok,
+  #tab-patrol, #tab-tech,
+  #login-screen, #print-handover-btn,
+  .skip-link, .net-online, .net-offline,
+  #network-status, .privacy-badge { display: none !important; }
+
+  /* 確保交班報告可見 */
+  #tab-handover { display: block !important; }
+  #main-screen { display: block !important; }
+  .screen.hidden { display: block !important; }
+  .tab-content.hidden { display: none !important; }
+  #tab-handover.hidden { display: block !important; }
 
   .main-content { display: block; }
 
@@ -1986,8 +2002,30 @@ body {
     border: 1px solid #ccc;
   }
 
+  .handover-grid {
+    padding: 0;
+  }
+
+  .ho-patient {
+    break-inside: avoid;
+    border: 1px solid #ccc;
+    margin-bottom: 12px;
+    padding: 8px;
+  }
+
+  .summary-stats {
+    display: flex;
+    gap: 24px;
+  }
+
   body {
     font-size: 12pt;
     background: #fff;
+    color: #000;
+  }
+
+  /* 列印時顯示標題 */
+  .handover-summary h2::after {
+    content: " — " attr(data-date);
   }
 }

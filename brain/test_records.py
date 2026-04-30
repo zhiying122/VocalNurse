@@ -342,13 +342,16 @@ class TestProperty3DateFilter:
             filter_str = filter_date.isoformat()
             result = records.list_records(date_filter=filter_str)
 
+            # list_records 現在回傳分頁格式 { records: [...], total, page, ... }
+            result_records = result["records"]
+
             # Every returned record must match the filter date
-            for r in result:
+            for r in result_records:
                 assert r["created_at"][:10] == filter_str
 
             # All records matching the filter date must be included
             expected_count = sum(1 for d in dates if d.isoformat() == filter_str)
-            assert len(result) == expected_count
+            assert len(result_records) == expected_count
 
 
 # ═══════════════════════════════════════════════════════════

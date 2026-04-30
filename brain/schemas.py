@@ -11,7 +11,8 @@ FastAPI 會自動根據這些 Schema 進行：
     前端 → STTInput → Brain 模組 → BrainOutput → 前端顯示
     前端 → RecordCreate → Records 模組 → RecordResponse → 前端顯示
 """
-from pydantic import BaseModel, Field
+import re
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 
@@ -24,7 +25,11 @@ class STTInput(BaseModel):
     語音辨識後的原始文字輸入。
     前端錄音 → STT 辨識 → 將辨識結果以此格式送到 /brain/process
     """
-    raw_text: str = Field(..., description="語音辨識後的原始文字（中英台混合）")
+    raw_text: str = Field(
+        ...,
+        min_length=1,
+        description="語音辨識後的原始文字（中英台混合），至少 1 個字元",
+    )
 
 
 # ══════════════════════════════════════════════════════════
@@ -46,6 +51,16 @@ class MedicationEntity(BaseModel):
     route: Optional[str] = Field(None, description="給藥途徑，如 'PO'（口服）、'IV'（靜脈）、'PRN'（需要時）")
     raw: str = Field(..., description="原始辨識文字，供除錯用")
 
+    # 劑量格式驗證：若有提供，必須是數字（可含小數點）
+    @field_validator("dose")
+    @classmethod
+    def validate_dose_format(cls, v):
+        if v is not None and v != "":
+            # 允許的格式：純數字、帶小數點的數字（例如 "500", "0.25", "1.5"）
+            if not re.match(r"^\d+(\.\d+)?$", v.strip()):
+                raise ValueError("劑量格式不正確，應為數字（可含小數點），例如 '500' 或 '0.25'")
+        return v
+
 
 # ══════════════════════════════════════════════════════════
 # SOAP 護理紀錄結構
@@ -54,17 +69,18 @@ class MedicationEntity(BaseModel):
 class SOAPEntry(BaseModel):
     """
     SOAP 護理紀錄的四個欄位。
-    SOAP 是護理紀錄的標準格式：
 
     S (Subjective) — 主觀資料：病患或家屬說的話、主訴、感受
     O (Objective)  — 客觀資料：測量數值（BP/HR/BT/SpO2）、傷口觀察、意識狀態
     A (Assessment) — 評估：根據 S 和 O 做出的護理判斷
     P (Plan)       — 計畫：已執行或預計執行的處置、給藥、追蹤計畫
+
+    每個欄位最大長度 5000 字元，防止過大的輸入。
     """
-    subjective: str = Field(..., description="S：病患主訴、主觀感受")
-    objective: str = Field(..., description="O：客觀數值，如生命徵象、傷口描述")
-    assessment: str = Field(..., description="A：護理評估與判斷")
-    plan: str = Field(..., description="P：護理計畫與處置")
+    subjective: str = Field(..., max_length=5000, description="S：病患主訴、主觀感受")
+    objective: str = Field(..., max_length=5000, description="O：客觀數值，如生命徵象、傷口描述")
+    assessment: str = Field(..., max_length=5000, description="A：護理評估與判斷")
+    plan: str = Field(..., max_length=5000, description="P：護理計畫與處置")
 
 
 # ══════════════════════════════════════════════════════════
@@ -88,11 +104,32 @@ class BrainOutput(BaseModel):
 
 
 # ══════════════════════════════════════════════════════════
-# 【新增】共享護理紀錄 Schema
-#
-# 這兩個 Schema 是「共享護理紀錄」功能的資料格式：
-# - RecordCreate   — 前端送出的儲存請求格式
-# - RecordResponse — 後端回傳的完整紀錄格式（含系統產生的欄位）
+# 安全警示結構
+# ══════════════════════════════════════════════════════════
+
+class AlertEntry(BaseModel):
+    """
+    單一安全警示的結構化資料。
+    由前端防呆引擎產生，隨紀錄一起儲存到後端。
+
+    欄位說明：
+        type     — 警示類型（allergy / dosage_exceeded / vital_abnormal / drug_interaction）
+        severity — 嚴重程度（critical / warning）
+        item     — 觸發警示的項目（藥物名稱或生命徵象名稱）
+        detected — 偵測到的值（例如 "1500 mg"）
+        range    — 正常範圍（例如 "最大單次 1000 mg"）
+        message  — 警示訊息（中文，直接顯示在前端）
+    """
+    type: str = Field("", description="警示類型")
+    severity: str = Field("", description="嚴重程度：critical 或 warning")
+    item: str = Field("", description="觸發警示的項目")
+    detected: str = Field("", description="偵測到的值")
+    range: str = Field("", description="正常範圍")
+    message: str = Field("", description="警示訊息")
+
+
+# ══════════════════════════════════════════════════════════
+# 共享護理紀錄 Schema
 # ══════════════════════════════════════════════════════════
 
 class RecordCreate(BaseModel):
@@ -101,7 +138,7 @@ class RecordCreate(BaseModel):
 
     前端 confirmSave() 會組裝此格式的 JSON，POST 到 /records。
     注意：nurse_id 和 nurse_name 不在此 Schema 中，
-    因為這兩個欄位是從 JWT token 自動提取的，不需要前端傳送。
+    因為這兩個欄位是從 JWT token 自動提取的。
     """
     patient_id: str = Field(..., description="病患 ID（例如 'P8EE7C3'）")
     soap: SOAPEntry                                                         # SOAP 四欄位
@@ -110,6 +147,7 @@ class RecordCreate(BaseModel):
     warnings: list[str] = Field(default_factory=list, description="AI 發現的潛在問題")
     raw_text: str = Field("", description="原始語音辨識文字")
     shift: str = Field("", description="班別：日班、小夜班、大夜班")
+    alerts: list[AlertEntry] = Field(default_factory=list, description="安全警示列表")
 
 
 class RecordResponse(BaseModel):
@@ -117,9 +155,9 @@ class RecordResponse(BaseModel):
     護理紀錄的完整回應格式。
 
     包含 RecordCreate 的所有欄位，加上系統自動產生的：
-    - id         — 紀錄唯一識別碼（R + 6 位 hex，例如 "R3A5B2C"）
+    - id         — 紀錄唯一識別碼（R + 6 位 hex）
     - nurse_id   — 建立者員工編號（從 JWT 提取）
-    - nurse_name — 建立者姓名（從 JWT 提取，直接顯示在前端）
+    - nurse_name — 建立者姓名（從 JWT 提取）
     - created_at — 建立時間（ISO 8601 UTC 格式）
     """
     id: str = Field(..., description="紀錄 ID（R + 6 位 hex，例如 'R3A5B2C'）")
@@ -133,3 +171,16 @@ class RecordResponse(BaseModel):
     nurse_id: str = Field(..., description="建立者員工編號（從 JWT 自動提取）")
     nurse_name: str = Field(..., description="建立者姓名（從 JWT 自動提取）")
     created_at: str = Field(..., description="建立時間（ISO 8601 UTC 格式）")
+    alerts: list[AlertEntry] = Field(default_factory=list, description="安全警示列表")
+
+
+class RecordUpdate(BaseModel):
+    """
+    編輯護理紀錄的請求格式。
+    僅允許更新部分欄位：soap、medications、pain_scale、warnings。
+    使用 Optional 讓前端只需傳送要更新的欄位。
+    """
+    soap: Optional[SOAPEntry] = None
+    medications: Optional[list[MedicationEntity]] = None
+    pain_scale: Optional[int] = Field(None, ge=0, le=10)
+    warnings: Optional[list[str]] = None

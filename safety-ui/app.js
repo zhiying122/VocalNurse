@@ -203,7 +203,18 @@ async function doLogin() {
     finally { setButtonLoading(btn, false); }
 }
 
-function doLogout() { authToken=null; currentUser=null; document.getElementById('main-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
+/**
+ * 登出功能（含確認對話框）
+ * 登出前會提示使用者確認，避免誤觸導致未儲存的紀錄遺失。
+ */
+function doLogout() {
+    // 【Item 9】登出確認對話框
+    if (!confirm('確定要登出嗎？未儲存的紀錄將會遺失。')) return;
+    authToken = null;
+    currentUser = null;
+    document.getElementById('main-screen').classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+}
 
 // ══════════════════════════════════════
 // 病患管理（真實 API）
@@ -371,12 +382,46 @@ let audioChunks = [];
 let recordTimer = null;
 let recordSeconds = 0;
 let isRecording = false;
+let isPaused = false;  // 【Item 14】錄音暫停狀態
 
 async function toggleRecording() {
     if (isRecording) {
         stopRecording();
     } else {
         await startRecording();
+    }
+}
+
+/**
+ * 【Item 14】暫停/恢復錄音
+ * 使用 MediaRecorder 的 pause() 和 resume() API
+ */
+function togglePauseRecording() {
+    if (!mediaRecorder || !isRecording) return;
+
+    const pauseBtn = document.getElementById('pause-btn');
+    if (isPaused) {
+        // 恢復錄音
+        mediaRecorder.resume();
+        isPaused = false;
+        if (pauseBtn) pauseBtn.textContent = '⏸ 暫停';
+        document.getElementById('record-btn').classList.add('recording');
+        // 恢復計時器
+        recordTimer = setInterval(() => {
+            recordSeconds++;
+            document.getElementById('record-timer').textContent = `${recordSeconds}s`;
+        }, 1000);
+        document.querySelector('#recording-indicator span').innerHTML =
+            `錄音中... <span id="record-timer">${recordSeconds}s</span>（再點一下停止）`;
+    } else {
+        // 暫停錄音
+        mediaRecorder.pause();
+        isPaused = true;
+        if (pauseBtn) pauseBtn.textContent = '▶ 繼續';
+        document.getElementById('record-btn').classList.remove('recording');
+        clearInterval(recordTimer);
+        document.querySelector('#recording-indicator span').innerHTML =
+            `已暫停 <span id="record-timer">${recordSeconds}s</span>（點繼續恢復錄音）`;
     }
 }
 
@@ -390,22 +435,30 @@ async function startRecording() {
         mediaRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); handleRecordingDone(); };
         mediaRecorder.start(100);
         isRecording = true;
+        isPaused = false;
         recordSeconds = 0;
         document.getElementById('record-btn').classList.add('recording');
         document.getElementById('record-label').textContent = '點擊停止錄音';
         document.getElementById('recording-indicator').classList.remove('hidden');
+        // 顯示暫停按鈕
+        const pauseBtn = document.getElementById('pause-btn');
+        if (pauseBtn) { pauseBtn.classList.remove('hidden'); pauseBtn.textContent = '⏸ 暫停'; }
         recordTimer = setInterval(() => { recordSeconds++; document.getElementById('record-timer').textContent = `${recordSeconds}s`; }, 1000);
     } catch(e) { alert('無法存取麥克風：' + e.message); }
 }
 
 function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
+    if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
         mediaRecorder.stop();
         clearInterval(recordTimer);
         isRecording = false;
+        isPaused = false;
         document.getElementById('record-btn').classList.remove('recording');
         document.getElementById('record-label').textContent = '點擊開始錄音';
         document.getElementById('recording-indicator').classList.add('hidden');
+        // 隱藏暫停按鈕
+        const pauseBtn = document.getElementById('pause-btn');
+        if (pauseBtn) pauseBtn.classList.add('hidden');
     }
 }
 
@@ -819,7 +872,9 @@ async function renderHandover() {
             headers: getAuthHeaders()
         });
         if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
-        const backendRecords = await res.json();
+        const data = await res.json();
+        // 【Item 13】支援分頁格式：後端回傳 { records: [...], total, page, ... }
+        const backendRecords = Array.isArray(data) ? data : (data.records || []);
 
         // Group backend records by patient_id
         const grouped = {};
@@ -1045,3 +1100,146 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// ══════════════════════════════════════
+// 【Item 15】病患搜尋功能
+// ══════════════════════════════════════
+
+/**
+ * 搜尋病患列表。
+ * 比對病患姓名、床號、診斷，支援模糊搜尋。
+ *
+ * 參數：
+ *   query — 搜尋關鍵字（從搜尋輸入框取得）
+ */
+function searchPatients(query) {
+    const q = (query || '').trim().toLowerCase();
+    const el = document.getElementById('patient-list');
+
+    if (!q) {
+        // 搜尋框為空，顯示所有病患
+        renderPatientList();
+        return;
+    }
+
+    // 篩選符合條件的病患（姓名、床號、診斷）
+    const filtered = patients.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.bed.toLowerCase().includes(q) ||
+        (p.dx || '').toLowerCase().includes(q)
+    );
+
+    if (!filtered.length) {
+        el.innerHTML = '<p style="color:#999;font-size:.85rem">找不到符合的病患</p>';
+        return;
+    }
+
+    el.innerHTML = filtered.map(p => {
+        const ac = (allRecords[p.id] || []).reduce((s, r) => s + (r.alerts?.length || 0), 0);
+        return `<div class="patient-chip" id="chip-${p.id}" onclick="selectPatient('${p.id}')">${p.bed} ${p.name}${ac > 0 ? `<span class="chip-alert">⚠${ac}</span>` : ''}</div>`;
+    }).join('');
+}
+
+
+// ══════════════════════════════════════
+// 【Item 11】列印交班報告
+// ══════════════════════════════════════
+
+/**
+ * 列印交班報告。
+ * 使用 window.print() 搭配 @media print CSS 樣式，
+ * 只印出交班報告內容，隱藏導覽列和側邊欄。
+ */
+function printHandover() {
+    // 確保交班頁面已渲染
+    switchTab('handover');
+    // 延遲一小段時間讓頁面渲染完成
+    setTimeout(() => {
+        window.print();
+    }, 300);
+}
+
+
+// ══════════════════════════════════════
+// 【Item 12】紀錄編輯功能
+// ══════════════════════════════════════
+
+/**
+ * 啟用 SOAP 卡片的編輯模式。
+ * 將 SOAP 內容區域切換為可編輯的 textarea，
+ * 並顯示「儲存修改」按鈕。
+ */
+function enableRecordEdit() {
+    const fields = ['soap-s', 'soap-o', 'soap-a', 'soap-p'];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.setAttribute('contenteditable', 'true');
+            el.classList.add('editing');
+            el.style.border = '1px dashed var(--accent)';
+            el.style.padding = '8px';
+        }
+    });
+
+    // 顯示儲存修改按鈕，隱藏編輯按鈕
+    const editBtn = document.getElementById('edit-record-btn');
+    const saveEditBtn = document.getElementById('save-edit-btn');
+    if (editBtn) editBtn.classList.add('hidden');
+    if (saveEditBtn) saveEditBtn.classList.remove('hidden');
+}
+
+/**
+ * 儲存 SOAP 紀錄的修改。
+ * 從 contenteditable 區域讀取修改後的內容，
+ * 透過 PUT /records/{record_id} API 更新後端。
+ */
+async function saveRecordEdit() {
+    if (!currentOutput || !currentPatient) return;
+
+    // 讀取修改後的 SOAP 內容
+    const updatedSoap = {
+        subjective: document.getElementById('soap-s').textContent.trim(),
+        objective: document.getElementById('soap-o').textContent.trim(),
+        assessment: document.getElementById('soap-a').textContent.trim(),
+        plan: document.getElementById('soap-p').textContent.trim(),
+    };
+
+    // 更新本地 currentOutput
+    currentOutput.soap = updatedSoap;
+
+    // 如果有紀錄 ID（已儲存到後端的紀錄），透過 API 更新
+    const lastRecord = (allRecords[currentPatient.id] || []).slice(-1)[0];
+    if (lastRecord && lastRecord.id) {
+        try {
+            const res = await fetchWithTimeout(`${API}/records/${lastRecord.id}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ soap: updatedSoap }),
+            });
+            if (res.ok) {
+                showToast('✓ 紀錄已更新');
+            } else {
+                showToast('更新失敗：' + (await res.json()).detail);
+            }
+        } catch (e) {
+            showToast('更新失敗：網路錯誤');
+        }
+    }
+
+    // 恢復為非編輯模式
+    const fields = ['soap-s', 'soap-o', 'soap-a', 'soap-p'];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.classList.remove('editing');
+            el.style.border = '';
+            el.style.padding = '';
+        }
+    });
+
+    // 切換按鈕顯示
+    const editBtn = document.getElementById('edit-record-btn');
+    const saveEditBtn = document.getElementById('save-edit-btn');
+    if (editBtn) editBtn.classList.remove('hidden');
+    if (saveEditBtn) saveEditBtn.classList.add('hidden');
+}
