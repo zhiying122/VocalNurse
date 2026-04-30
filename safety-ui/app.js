@@ -862,6 +862,53 @@ function renderTimeline() {
     }).reverse().join('');
 }
 
+/**
+ * 【慈悲科技】產生關懷提醒
+ * 根據病患的紀錄分析，產生有溫度的關懷建議。
+ * 這不只是數據分析，而是提醒護理師關注病患的身心狀態。
+ */
+function generateCareReminders(patientRecords, patient) {
+    const reminders = [];
+    const records = patientRecords || [];
+    
+    if (!records.length) return reminders;
+
+    // 連續高疼痛指數提醒
+    const recentPain = records.slice(-3).filter(r => r.pain_scale != null && r.pain_scale >= 7);
+    if (recentPain.length >= 2) {
+        reminders.push({
+            icon: '💛',
+            text: `${patient.name} 近期疼痛指數持續偏高（≥7），建議加強疼痛評估與關懷，了解是否有未被滿足的需求。`
+        });
+    }
+
+    // 多次警示提醒
+    const totalAlertCount = records.reduce((sum, r) => sum + (r.alerts?.length || 0), 0);
+    if (totalAlertCount >= 3) {
+        reminders.push({
+            icon: '🔔',
+            text: `${patient.name} 已累積 ${totalAlertCount} 次安全警示，建議與醫師討論用藥方案是否需要調整。`
+        });
+    }
+
+    // 長時間未有紀錄提醒
+    if (records.length > 0) {
+        const lastRecord = records[records.length - 1];
+        const lastTime = lastRecord.time || '';
+        const now = new Date();
+        const currentHour = now.getHours();
+        const lastHour = parseInt(lastTime.split(':')[0]) || 0;
+        if (currentHour - lastHour >= 4 && currentHour - lastHour < 12) {
+            reminders.push({
+                icon: '🕐',
+                text: `${patient.name} 已超過 4 小時未有新紀錄，建議前往巡視確認病患狀況。`
+            });
+        }
+    }
+
+    return reminders;
+}
+
 async function renderHandover() {
     let handoverRecords = allRecords; // fallback: use local data
     let showWarning = false;
@@ -916,6 +963,24 @@ async function renderHandover() {
             return `<div class="ho-record ${r.alerts?.length?'has-alert':''}"><strong>${r.time}</strong>${nurseInfo} ${shiftInfo} — Pain: ${r.pain_scale??'-'} | ${r.medications?.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')||'無給藥'}${r.alerts?.length?' ⚠️ 有警示':''}</div>`;
         }).join(''):'<div class="ho-record">尚無紀錄</div>'}</div></div>`;
     }).join('');
+
+    // 【慈悲科技】產生並顯示關懷提醒
+    let careHtml = '';
+    patients.forEach(p => {
+        const recs = handoverRecords[p.id] || [];
+        const reminders = generateCareReminders(recs, p);
+        if (reminders.length > 0) {
+            careHtml += reminders.map(r => 
+                `<div class="care-reminder"><span class="care-reminder-icon">${r.icon}</span><div class="care-reminder-content">${r.text}</div></div>`
+            ).join('');
+        }
+    });
+    
+    if (careHtml) {
+        const careSection = `<div style="margin-bottom:20px"><h3 style="font-size:.95rem;color:var(--warning);margin-bottom:12px">💝 關懷提醒</h3>${careHtml}</div>`;
+        const handoverEl = document.getElementById('handover-patients');
+        handoverEl.innerHTML = careSection + handoverEl.innerHTML;
+    }
 }
 
 // ══════════════════════════════════════

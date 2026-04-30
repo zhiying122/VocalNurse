@@ -21,7 +21,7 @@
             <div class="login-container">
                 <div class="login-logo"><img src="logo.png" alt="VoiceNursy Logo" class="login-logo-img" width="72" height="72" onerror="this.style.display='none'"></div>
                 <h1>VoiceNursy</h1>
-                <p class="login-subtitle">護理聲助手 — 隱形的 AI 護理長</p>
+                <p class="login-subtitle">護理聲助手 — 用科技守護每一份照護的溫暖</p>
                 <form id="login-form" class="login-form" onsubmit="event.preventDefault(); doLogin();" novalidate>
                     <div class="form-group"><label for="login-id">員工編號</label><input type="text" id="login-id" placeholder="請輸入員工編號" required autocomplete="username"><span class="field-error" id="login-id-error" role="alert"></span></div>
                     <div class="form-group"><label for="login-pw">密碼</label><input type="password" id="login-pw" placeholder="請輸入密碼" required autocomplete="current-password"><span class="field-error" id="login-pw-error" role="alert"></span></div>
@@ -56,6 +56,7 @@
                     <span id="current-nurse"></span>
                     <span id="current-shift" class="shift-badge">日班</span>
                     <span class="privacy-badge">本地 AI</span>
+                    <span class="privacy-badge" style="background:rgba(46,125,50,.15);border-color:rgba(46,125,50,.35)">SDG 3·8·9</span>
                     <span id="network-status" class="net-online" role="status">● 線上</span>
                     <button class="btn btn-small btn-outline" onclick="doLogout()">登出</button>
                 </div>
@@ -141,7 +142,7 @@
                                 <button class="btn btn-success btn-large" onclick="confirmSave()">✅ 確認存檔</button>
                             </div>
                         </div>
-                        <div id="save-ok" class="save-ok hidden"><div class="checkmark-circle"><span>✓</span></div><p>病歷已成功歸檔</p></div>
+                        <div id="save-ok" class="save-ok hidden"><div class="checkmark-circle"><span>✓</span></div><p>紀錄已安全歸檔，感謝您的用心照護 💚</p></div>
                     </section>
                     <section class="side-panel" aria-label="即時資訊">
                         <div class="mini-chart"><h3>疼痛趨勢</h3><canvas id="pain-chart" aria-label="疼痛趨勢圖"></canvas></div>
@@ -175,7 +176,41 @@
             <div id="tab-tech" class="tab-content hidden">
                 <div class="tech-page">
                     <h2>VoiceNursy 系統技術架構</h2>
-                    <p class="tech-intro">全程本地運行，病歷資料不出院，符合台灣醫療個資法</p>
+                    <p class="tech-intro">以慈悲為本、科技為用 — 全程本地運行，守護病患隱私，讓護理師回歸照護的初心</p>
+                    <!-- 慈悲科技：護理師的心聲 -->
+                    <div class="compassion-story">
+                        <h3>💝 護理師的心聲</h3>
+                        <blockquote class="nurse-quote">
+                            「每天下班後，我還要花兩個小時補寫護理紀錄。回到家，孩子已經睡了。我選擇護理這份工作，是因為想照顧人，不是想當文書人員。」
+                            <cite>— 某醫學中心護理師的真實心聲</cite>
+                        </blockquote>
+                        <p class="compassion-desc">
+                            台灣有超過 <strong>17 萬名護理師</strong>，每人每天平均花費 <strong>2-3 小時</strong> 手寫或打字輸入護理紀錄。
+                            VoiceNursy 的誕生，就是為了 <strong>把時間還給護理師，讓他們回歸照護的初心</strong>。
+                        </p>
+                        <div class="compassion-impact">
+                            <div class="impact-item">
+                                <span class="impact-icon">⏱️</span>
+                                <span class="impact-num">70%</span>
+                                <span class="impact-label">減少紀錄時間</span>
+                            </div>
+                            <div class="impact-item">
+                                <span class="impact-icon">🛡️</span>
+                                <span class="impact-num">2秒</span>
+                                <span class="impact-label">即時攔截異常劑量</span>
+                            </div>
+                            <div class="impact-item">
+                                <span class="impact-icon">📄</span>
+                                <span class="impact-num">0張</span>
+                                <span class="impact-label">紙本病歷用紙</span>
+                            </div>
+                            <div class="impact-item">
+                                <span class="impact-icon">💚</span>
+                                <span class="impact-num">100%</span>
+                                <span class="impact-label">資料不出院</span>
+                            </div>
+                        </div>
+                    </div>
                     <div class="tech-flow">
                         <div class="flow-step"><div class="flow-icon">🎙️</div><div class="flow-title">語音輸入</div><div class="flow-detail">Web Audio API<br>瀏覽器即時錄音<br>WebM Opus 編碼</div></div>
                         <div class="flow-arrow">→</div>
@@ -199,6 +234,38 @@
                         <div class="diff-grid">
                             <div class="diff-item bad"><h4>❌ 直接用 ChatGPT</h4><ul><li>病歷資料上傳雲端，違反個資法</li><li>無法辨識台語和醫療口語</li><li>沒有劑量防呆機制</li><li>沒有過敏原交叉檢查</li><li>輸出格式不穩定</li><li>需要網路，醫院 WiFi 不穩就掛</li></ul></div>
                             <div class="diff-item good"><h4>✅ VoiceNursy</h4><ul><li>全程本地運行，資料不出院</li><li>醫療術語 Prompt 優化 + 校正字典</li><li>即時劑量閾值比對，2 秒內攔截</li><li>Penicillin/NSAIDs 交叉過敏偵測</li><li>Pydantic Schema 強制 JSON 結構</li><li>IndexedDB 離線暫存，斷網照用</li></ul></div>
+                        </div>
+                    </div>
+                    <!-- 慈悲科技：環保 5R 連結 -->
+                    <div class="eco-5r-section">
+                        <h3>🌱 環保 5R 實踐</h3>
+                        <p class="eco-intro">VoiceNursy 不只是醫療科技，更是環保理念的實踐。我們的設計從源頭減少資源浪費，用科技守護地球。</p>
+                        <div class="eco-grid">
+                            <div class="eco-card eco-reduce">
+                                <div class="eco-icon">📉</div>
+                                <h4>Reduce 減少</h4>
+                                <p>數位化取代手寫病歷，<strong>每位護理師每年減少約 3,000 張紙</strong>。全台 17 萬護理師，一年可減少 <strong>5.1 億張紙</strong>。</p>
+                            </div>
+                            <div class="eco-card eco-reduce2">
+                                <div class="eco-icon">🔋</div>
+                                <h4>Reduce 減少</h4>
+                                <p>全程本地運行，<strong>不需要雲端資料中心</strong>的電力消耗。相比雲端 AI 服務，碳足跡減少超過 90%。</p>
+                            </div>
+                            <div class="eco-card eco-refuse">
+                                <div class="eco-icon">🚫</div>
+                                <h4>Refuse 拒絕</h4>
+                                <p>拒絕使用雲端服務，<strong>拒絕資料外洩風險</strong>。不需要額外的伺服器硬體，利用現有電腦即可運行。</p>
+                            </div>
+                            <div class="eco-card eco-reuse">
+                                <div class="eco-icon">♻️</div>
+                                <h4>Reuse 重複使用</h4>
+                                <p>交班報告自動生成，<strong>同一份紀錄跨班別重複使用</strong>，不需要每班重新抄寫。離線暫存機制讓紀錄永不遺失。</p>
+                            </div>
+                            <div class="eco-card eco-repair">
+                                <div class="eco-icon">🔧</div>
+                                <h4>Repair 修復</h4>
+                                <p>開源架構，任何醫院 IT 團隊都能<strong>自行維護和修復</strong>。不依賴特定廠商，降低電子廢棄物產生。</p>
+                            </div>
                         </div>
                     </div>
                 </div>

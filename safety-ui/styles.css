@@ -1971,6 +1971,180 @@ body {
 }
 
 /* ══════════════════════════════════════
+   慈悲科技：護理師心聲 & 環保 5R
+   ══════════════════════════════════════ */
+.compassion-story {
+  margin-bottom: 32px;
+  padding: 28px;
+  background: linear-gradient(135deg, #fef6ee 0%, #fff 50%, #f0faf1 100%);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.compassion-story h3 {
+  font-size: 1.1rem;
+  color: var(--primary);
+  margin-bottom: var(--space-md);
+}
+
+.nurse-quote {
+  font-style: italic;
+  font-size: .95rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  padding: var(--space-md) var(--space-lg);
+  border-left: 4px solid var(--accent);
+  background: rgba(232, 145, 58, .05);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin-bottom: var(--space-md);
+}
+
+.nurse-quote cite {
+  display: block;
+  margin-top: var(--space-sm);
+  font-size: .82rem;
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.compassion-desc {
+  font-size: .92rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+.compassion-impact {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.impact-item {
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
+  padding: var(--space-md);
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.impact-item:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.impact-icon {
+  display: block;
+  font-size: 1.5rem;
+  margin-bottom: var(--space-xs);
+}
+
+.impact-num {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.impact-label {
+  display: block;
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-top: var(--space-xs);
+}
+
+/* 環保 5R */
+.eco-5r-section {
+  margin-top: 32px;
+  padding: 28px;
+  background: linear-gradient(135deg, #e8f5e9 0%, #fff 100%);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(46, 125, 50, .2);
+}
+
+.eco-5r-section h3 {
+  font-size: 1.1rem;
+  color: var(--success);
+  margin-bottom: var(--space-sm);
+}
+
+.eco-intro {
+  font-size: .9rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+  line-height: 1.7;
+}
+
+.eco-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+.eco-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.eco-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.eco-icon {
+  font-size: 1.5rem;
+  margin-bottom: var(--space-sm);
+}
+
+.eco-card h4 {
+  font-size: .9rem;
+  color: var(--success);
+  margin-bottom: var(--space-sm);
+}
+
+.eco-card p {
+  font-size: .82rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* 關懷提醒 */
+.care-reminder {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%);
+  border: 1px solid rgba(245, 124, 0, .2);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-md);
+  font-size: .85rem;
+  color: #5D4037;
+  animation: fadeIn .5s ease;
+}
+
+.care-reminder-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.care-reminder-content {
+  flex: 1;
+  line-height: 1.6;
+}
+
+.care-reminder-content strong {
+  color: var(--warning);
+}
+
+/* ══════════════════════════════════════
    列印樣式（交班報告列印用）
    【Item 11】隱藏導覽列、側邊欄，只顯示交班報告內容
    ══════════════════════════════════════ */
