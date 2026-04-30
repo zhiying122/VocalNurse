@@ -1,8 +1,45 @@
 /**
- * VoiceNursy — 完整真實版
+ * VoiceNursy — 完整真實版前端應用程式
+ *
+ * 本檔案是 VoiceNursy 護理語音紀錄系統的前端主程式，包含：
+ *
+ * 1. 認證系統（登入/註冊/登出）
+ * 2. 病患管理（新增/刪除/選擇病患）
+ * 3. 語音錄音（麥克風錄音 → WebM 格式）
+ * 4. SOAP 護理紀錄生成（透過後端 LLM）
+ * 5. 藥物安全警示（過敏原/劑量異常檢查）
+ * 6. 【新增】共享護理紀錄（存檔到後端、從後端載入、跨護理師共享）
+ * 7. 交班報告（顯示所有護理師的紀錄摘要）
+ * 8. 離線支援（API 失敗時暫存到 IndexedDB）
+ * 9. 操作紀錄（Audit Log）
+ *
+ * 全域變數說明：
+ *   authToken      — JWT 認證 token（登入後取得，登出後清空）
+ *   currentUser    — 目前登入的護理師資訊 { employee_id, name, role }
+ *   currentPatient — 目前選中的病患資訊
+ *   currentAlerts  — 目前 SOAP 的安全警示列表
+ *   currentOutput  — 目前 LLM 生成的 SOAP 輸出
+ *   allRecords     — 所有病患的紀錄快取 { patient_id: [record, ...] }
+ *   totalAlerts    — 累計警示數量（用於交班報告統計）
+ *   patients       — 所有病患列表（從後端 /patients API 載入）
  */
+
+// 後端 API 基礎 URL（FastAPI 運行在 port 8001）
 const API = 'http://localhost:8001';
 
+/**
+ * 帶有逾時機制的 fetch 包裝函式。
+ * 醫院網路不穩定，需要設定合理的逾時時間避免無限等待。
+ *
+ * 參數：
+ *   url     — API 端點 URL
+ *   options — fetch 選項（method, headers, body 等）
+ *   timeout — 逾時時間（毫秒），預設 10 秒
+ *             SOAP 生成設為 180 秒（LLM 回應較慢）
+ *             STT 設為 60 秒
+ *
+ * 逾時處理：使用 AbortController，超時後自動取消請求
+ */
 async function fetchWithTimeout(url, options = {}, timeout = 10000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -19,14 +56,52 @@ async function fetchWithTimeout(url, options = {}, timeout = 10000) {
     }
 }
 
-let authToken = null;
-let currentUser = null;
-let currentPatient = null;
-let currentAlerts = [];
-let currentOutput = null;
-let allRecords = {};
-let totalAlerts = 0;
-let patients = [];
+// ── 全域狀態變數 ──
+let authToken = null;       // JWT 認證 token（登入後賦值）
+let currentUser = null;     // 目前登入的護理師 { employee_id, name, role }
+let currentPatient = null;  // 目前選中的病患
+let currentAlerts = [];     // 目前 SOAP 的安全警示
+let currentOutput = null;   // 目前 LLM 生成的 SOAP 輸出
+let allRecords = {};        // 所有病患的紀錄快取（key=病患ID, value=紀錄陣列）
+let totalAlerts = 0;        // 累計警示數量
+let patients = [];          // 所有病患列表
+
+// ══════════════════════════════════════
+// 【新增】共用輔助函式
+// ══════════════════════════════════════
+
+/**
+ * 根據目前時間自動判斷班別。
+ * 台灣醫院三班制：
+ *   日班   — 08:00 ~ 15:59
+ *   小夜班 — 16:00 ~ 23:59
+ *   大夜班 — 00:00 ~ 07:59
+ *
+ * 用途：存檔時自動標記班別，不需要護理師手動選擇
+ */
+function getCurrentShift() {
+    const hour = new Date().getHours();
+    if (hour >= 8 && hour < 16) return '日班';
+    if (hour >= 16 && hour < 24) return '小夜班';
+    return '大夜班';
+}
+
+/**
+ * 產生帶有 JWT 認證的 HTTP headers。
+ * 所有需要驗證的 API 呼叫都要使用此函式。
+ *
+ * 回傳格式：
+ *   {
+ *     'Content-Type': 'application/json',
+ *     'Authorization': 'Bearer eyJhbGciOi...'
+ *   }
+ */
+function getAuthHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+    };
+}
 
 // ══════════════════════════════════════
 // 工具函式：Loading 狀態 & 表單驗證
@@ -152,7 +227,7 @@ function renderPatientList() {
     }).join('');
 }
 
-function selectPatient(id) {
+async function selectPatient(id) {
     currentPatient = patients.find(p => p.id === id);
     if (!currentPatient) return;
     if (!allRecords[id]) allRecords[id] = [];
@@ -168,6 +243,70 @@ function selectPatient(id) {
     document.getElementById('save-ok').classList.add('hidden');
     document.getElementById('processing').classList.add('hidden');
     document.getElementById('transcript-area').classList.add('hidden');
+
+    // Show loading indicator while fetching records from backend
+    const timelineEl = document.getElementById('timeline');
+    if (timelineEl) timelineEl.innerHTML = '<p style="color:#999;font-size:.85rem">載入紀錄中...</p>';
+
+    try {
+        const res = await fetchWithTimeout(`${API}/records/patient/${id}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+
+        if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
+
+        const backendRecords = await res.json();
+
+        // Map backend format to frontend allRecords format
+        allRecords[id] = backendRecords.map(r => {
+            const createdAt = r.created_at ? new Date(r.created_at) : new Date();
+            const time = `${createdAt.getHours().toString().padStart(2,'0')}:${createdAt.getMinutes().toString().padStart(2,'0')}`;
+            const date = r.created_at ? r.created_at.slice(0, 10) : createdAt.toISOString().slice(0, 10);
+            return {
+                soap: r.soap,
+                medications: r.medications || [],
+                pain_scale: r.pain_scale,
+                alerts: (r.warnings || []).map(w => typeof w === 'string' ? { message: w } : w),
+                time,
+                date,
+                raw: r.raw_text || '',
+                nurse_name: r.nurse_name || '',
+                shift: r.shift || ''
+            };
+        });
+    } catch (e) {
+        // Network failure — fall back to IndexedDB records
+        console.warn('[selectPatient] 後端載入失敗，使用離線資料', e);
+        try {
+            if (typeof getPatientRecords === 'function') {
+                const localRecords = await getPatientRecords(id);
+                if (localRecords && localRecords.length) {
+                    allRecords[id] = localRecords.map(r => ({
+                        soap: r.soap,
+                        medications: r.medications || [],
+                        pain_scale: r.pain_scale,
+                        alerts: r.alerts || [],
+                        time: r.time || '',
+                        date: r.date || '',
+                        raw: r.raw || '',
+                        nurse_name: r.nurse_name || '',
+                        shift: r.shift || ''
+                    }));
+                }
+            }
+        } catch (_) { /* IndexedDB also failed — keep existing allRecords */ }
+
+        // Show network error indicator
+        if (timelineEl) {
+            const errorIndicator = document.createElement('div');
+            errorIndicator.className = 'net-error-indicator';
+            errorIndicator.style.cssText = 'color:#c62828;font-size:.8rem;padding:4px 8px;margin-bottom:4px;';
+            errorIndicator.textContent = '⚠ 網路錯誤，顯示離線資料';
+            timelineEl.prepend(errorIndicator);
+        }
+    }
+
     renderTimeline(); updatePainChart();
     updateMedicationTimeline(allRecords[id] || [], []);
 }
@@ -284,7 +423,7 @@ async function handleRecordingDone() {
         try {
             const fd = new FormData();
             fd.append('audio', blob, 'recording.webm');
-            const res = await fetchWithTimeout(`${API}/pipeline/full`, { method:'POST', body: fd });
+            const res = await fetchWithTimeout(`${API}/pipeline/full`, { method:'POST', body: fd }, 180000);
             if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
             const data = await res.json();
             document.getElementById('processing').classList.add('hidden');
@@ -306,7 +445,7 @@ async function handleRecordingDone() {
         try {
             const fd = new FormData();
             fd.append('audio', blob, 'recording.webm');
-            const res = await fetchWithTimeout(`${API}/stt/transcribe`, { method:'POST', body: fd });
+            const res = await fetchWithTimeout(`${API}/stt/transcribe`, { method:'POST', body: fd }, 60000);
             if (!res.ok) throw new Error(`STT 錯誤 ${res.status}`);
             const data = await res.json();
             document.getElementById('processing').classList.add('hidden');
@@ -340,7 +479,7 @@ async function processBrain(rawText) {
     document.getElementById('save-ok').classList.add('hidden');
     document.getElementById('processing').classList.remove('hidden');
     try {
-        const res = await fetchWithTimeout(`${API}/brain/process`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({raw_text:rawText}) });
+        const res = await fetchWithTimeout(`${API}/brain/process`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({raw_text:rawText}) }, 180000);
         if (!res.ok) throw new Error(`${res.status}`);
         const output = await res.json();
         currentOutput = output;
@@ -498,7 +637,7 @@ function releaseFocusTrap() {
 // ══════════════════════════════════════
 // 存檔
 // ══════════════════════════════════════
-function confirmSave() {
+async function confirmSave() {
     if (!currentOutput || !currentPatient) return;
 
     // Disable save button to prevent double-submit
@@ -507,35 +646,89 @@ function confirmSave() {
 
     const now = new Date();
     const time = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-    const record = {
+
+    // Build record payload for backend
+    const payload = {
+        patient_id: currentPatient.id,
         soap: currentOutput.soap,
         medications: currentOutput.medications,
         pain_scale: currentOutput.pain_scale,
-        alerts: currentAlerts,
-        time,
-        date: new Date().toISOString().slice(0, 10),
-        raw: currentOutput.raw_text
+        warnings: currentAlerts.map(a => a.message || ''),
+        raw_text: currentOutput.raw_text || '',
+        shift: getCurrentShift()
     };
 
-    // Save to local records
-    if (!allRecords[currentPatient.id]) allRecords[currentPatient.id] = [];
-    allRecords[currentPatient.id].push(record);
-    totalAlerts += currentAlerts.length;
+    try {
+        const res = await fetchWithTimeout(`${API}/records`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
 
-    // Save to IndexedDB
-    if (typeof saveRecordLocally === 'function') {
-        saveRecordLocally({
-            patientId: currentPatient.id,
-            patientName: currentPatient.name,
-            ...record
-        }).catch(() => {});
+        if (res.status === 401) {
+            showToast('登入已過期，請重新登入');
+            doLogout();
+            return;
+        }
+
+        if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
+
+        const savedRecord = await res.json();
+
+        // Update local records with backend response
+        if (!allRecords[currentPatient.id]) allRecords[currentPatient.id] = [];
+        allRecords[currentPatient.id].push({
+            ...savedRecord,
+            alerts: currentAlerts,
+            time,
+            date: now.toISOString().slice(0, 10)
+        });
+        totalAlerts += currentAlerts.length;
+
+        showToast('✓ 紀錄已儲存');
+    } catch (e) {
+        // Network failure — save to IndexedDB offline
+        if (typeof saveRecordLocally === 'function') {
+            try {
+                await saveRecordLocally({
+                    patientId: currentPatient.id,
+                    patientName: currentPatient.name,
+                    soap: currentOutput.soap,
+                    medications: currentOutput.medications,
+                    pain_scale: currentOutput.pain_scale,
+                    alerts: currentAlerts,
+                    time,
+                    date: now.toISOString().slice(0, 10),
+                    raw: currentOutput.raw_text,
+                    nurse_id: currentUser?.employee_id || '',
+                    nurse_name: currentUser?.name || '',
+                    shift: getCurrentShift(),
+                    synced: false
+                });
+            } catch (_) { /* IndexedDB failure — continue with in-memory save */ }
+        }
+
+        // Also keep in-memory record so UI stays consistent
+        if (!allRecords[currentPatient.id]) allRecords[currentPatient.id] = [];
+        allRecords[currentPatient.id].push({
+            soap: currentOutput.soap,
+            medications: currentOutput.medications,
+            pain_scale: currentOutput.pain_scale,
+            alerts: currentAlerts,
+            time,
+            date: now.toISOString().slice(0, 10),
+            raw: currentOutput.raw_text
+        });
+        totalAlerts += currentAlerts.length;
+
+        showToast('已離線暫存');
     }
 
     // Remove any existing save-fail prompt
     const failDiv = document.getElementById('save-fail');
     if (failDiv) failDiv.remove();
 
-    // Show success animation
+    // Show success animation & update UI
     document.getElementById('soap-cards').classList.add('hidden');
     document.getElementById('save-ok').classList.remove('hidden');
     document.getElementById('transcript-area').classList.add('hidden');
@@ -611,19 +804,62 @@ function renderTimeline() {
     el.innerHTML = records.map(r => {
         const d = r.alerts?.length>0;
         const meds = r.medications?.map(m=>`${m.name} ${m.dose||''} ${m.unit||''}`).join(', ')||'';
-        return `<div class="tl-item ${d?'danger':''}"><span class="tl-time">${r.time}</span><span>${meds||r.soap?.plan||'護理紀錄'}${d?' ⚠️':''}</span></div>`;
+        const nurseLabel = r.nurse_name ? ` [${r.nurse_name}]` : '';
+        return `<div class="tl-item ${d?'danger':''}"><span class="tl-time">${r.time}${nurseLabel}</span><span>${meds||r.soap?.plan||'護理紀錄'}${d?' ⚠️':''}</span></div>`;
     }).reverse().join('');
 }
 
-function renderHandover() {
-    const total = Object.values(allRecords).reduce((s,r)=>s+r.length,0);
+async function renderHandover() {
+    let handoverRecords = allRecords; // fallback: use local data
+    let showWarning = false;
+
+    try {
+        const res = await fetchWithTimeout(`${API}/records`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
+        const backendRecords = await res.json();
+
+        // Group backend records by patient_id
+        const grouped = {};
+        backendRecords.forEach(r => {
+            if (!grouped[r.patient_id]) grouped[r.patient_id] = [];
+            const createdAt = r.created_at ? new Date(r.created_at) : new Date();
+            const time = `${createdAt.getHours().toString().padStart(2,'0')}:${createdAt.getMinutes().toString().padStart(2,'0')}`;
+            grouped[r.patient_id].push({
+                soap: r.soap,
+                medications: r.medications || [],
+                pain_scale: r.pain_scale,
+                alerts: (r.warnings || []).map(w => typeof w === 'string' ? { message: w } : w),
+                time,
+                date: r.created_at ? r.created_at.slice(0, 10) : createdAt.toISOString().slice(0, 10),
+                raw: r.raw_text || '',
+                nurse_name: r.nurse_name || '',
+                shift: r.shift || ''
+            });
+        });
+        handoverRecords = grouped;
+    } catch (e) {
+        console.warn('[renderHandover] 後端載入失敗，使用本地資料', e);
+        showWarning = true;
+    }
+
+    const total = Object.values(handoverRecords).reduce((s,r)=>s+r.length,0);
     document.getElementById('stat-patients').textContent = patients.length;
     document.getElementById('stat-alerts').textContent = totalAlerts;
     document.getElementById('stat-records').textContent = total;
-    document.getElementById('handover-patients').innerHTML = patients.map(p => {
-        const recs = allRecords[p.id]||[];
+
+    const warningHtml = showWarning ? '<div class="ho-warning" style="color:#c62828;background:#fff3e0;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:.9rem;">⚠ 資料可能不完整（網路錯誤）</div>' : '';
+
+    document.getElementById('handover-patients').innerHTML = warningHtml + patients.map(p => {
+        const recs = handoverRecords[p.id]||[];
         const ac = recs.reduce((s,r)=>s+(r.alerts?.length||0),0);
-        return `<div class="ho-patient"><div class="ho-patient-header"><span class="ho-patient-name">${p.name}（${p.age}歲）${ac>0?' ⚠️':''}</span><span class="ho-patient-bed">${p.bed} | ${p.dx}</span></div><div class="ho-records">${recs.length?recs.map(r=>`<div class="ho-record ${r.alerts?.length?'has-alert':''}"><strong>${r.time}</strong> — Pain: ${r.pain_scale??'-'} | ${r.medications?.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')||'無給藥'}${r.alerts?.length?' ⚠️ 有警示':''}</div>`).join(''):'<div class="ho-record">尚無紀錄</div>'}</div></div>`;
+        return `<div class="ho-patient"><div class="ho-patient-header"><span class="ho-patient-name">${p.name}（${p.age}歲）${ac>0?' ⚠️':''}</span><span class="ho-patient-bed">${p.bed} | ${p.dx}</span></div><div class="ho-records">${recs.length?recs.map(r=>{
+            const nurseInfo = r.nurse_name ? ` — 護理師：${r.nurse_name}` : '';
+            const shiftInfo = r.shift ? `【${r.shift}】` : '';
+            return `<div class="ho-record ${r.alerts?.length?'has-alert':''}"><strong>${r.time}</strong>${nurseInfo} ${shiftInfo} — Pain: ${r.pain_scale??'-'} | ${r.medications?.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')||'無給藥'}${r.alerts?.length?' ⚠️ 有警示':''}</div>`;
+        }).join(''):'<div class="ho-record">尚無紀錄</div>'}</div></div>`;
     }).join('');
 }
 
@@ -696,8 +932,8 @@ function renderAuditLog() {
 
 // Hook into existing functions to log actions
 const _origConfirmSave = confirmSave;
-confirmSave = function() {
-    _origConfirmSave();
+confirmSave = async function() {
+    await _origConfirmSave();
     if (currentPatient && currentOutput) {
         const meds = currentOutput.medications?.map(m => m.name).join(', ') || '無';
         addAuditLog('存檔 SOAP', `病患：${currentPatient.name} | 藥物：${meds}`);

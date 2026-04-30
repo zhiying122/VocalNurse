@@ -12,6 +12,11 @@ venv/
 # 運行時資料（每台電腦不同）
 brain/users.json
 brain/patients.json
+brain/records.json
+
+# 測試框架快取
+.hypothesis/
+brain/.hypothesis/
 
 # 暫存音檔
 *.wav
@@ -23,6 +28,9 @@ temp_audio/
 
 # IDE
 .vscode/
+
+# Kiro spec 文件
+.kiro/
 
 # 測試覆蓋率
 .coverage
