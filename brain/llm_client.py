@@ -13,9 +13,13 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 
 def _extract_json(text: str) -> dict:
     """從 LLM 回應中提取 JSON，處理可能的 markdown code block"""
-    text = re.sub(r"```json\s*", "", text)
-    text = re.sub(r"```\s*", "", text)
-    text = text.strip()
+    # 先嘗試提取 ```json ... ``` 或 ``` ... ``` 包裹的內容
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1).strip()
+    else:
+        # 沒有 code fence，直接去除首尾空白
+        text = text.strip()
     return json.loads(text)
 
 

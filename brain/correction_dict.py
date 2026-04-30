@@ -66,13 +66,23 @@ ABBREVIATION_CORRECTION: dict[str, str] = {
 
 
 def normalize_drug_name(text: str) -> str:
-    """將文字中的口語藥名替換為標準名稱（不區分大小寫）"""
-    lower = text.lower()
-    for key, standard in DRUG_CORRECTION.items():
-        if key.lower() in lower:
-            text = text.replace(key, standard)
-            text = text.replace(key.lower(), standard)
-            text = text.replace(key.upper(), standard)
+    """將文字中的口語藥名替換為標準名稱（不區分大小寫，精確匹配）"""
+    import re
+    # 按 key 長度降序排列，避免短 key 先匹配導致長 key 被破壞
+    sorted_items = sorted(DRUG_CORRECTION.items(), key=lambda x: len(x[0]), reverse=True)
+    # 記錄已替換的標準名稱，避免重複替換
+    replaced_standards: set[str] = set()
+    for key, standard in sorted_items:
+        if standard in replaced_standards:
+            # 如果這個標準名稱已經被替換過，跳過同義詞
+            # 但仍需檢查原文中是否有其他形式需要替換
+            pass
+        # 使用 re.sub 做不區分大小寫的精確替換
+        pattern = re.compile(re.escape(key), re.IGNORECASE)
+        new_text = pattern.sub(standard, text)
+        if new_text != text:
+            replaced_standards.add(standard)
+            text = new_text
     return text
 
 

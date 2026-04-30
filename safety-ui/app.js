@@ -29,6 +29,41 @@ let totalAlerts = 0;
 let patients = [];
 
 // ══════════════════════════════════════
+// 工具函式：Loading 狀態 & 表單驗證
+// ══════════════════════════════════════
+function setButtonLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+        btn.classList.add('loading');
+        btn.disabled = true;
+        btn._origText = btn.textContent;
+        btn.textContent = '處理中...';
+    } else {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        if (btn._origText) btn.textContent = btn._origText;
+    }
+}
+
+function showFieldError(inputId, message) {
+    const input = document.getElementById(inputId);
+    const errorEl = document.getElementById(inputId + '-error');
+    if (input) input.classList.add('input-error');
+    if (errorEl) { errorEl.textContent = message; errorEl.classList.add('visible'); }
+}
+
+function clearFieldError(inputId) {
+    const input = document.getElementById(inputId);
+    const errorEl = document.getElementById(inputId + '-error');
+    if (input) input.classList.remove('input-error');
+    if (errorEl) { errorEl.textContent = ''; errorEl.classList.remove('visible'); }
+}
+
+function clearAllFieldErrors(ids) {
+    ids.forEach(id => clearFieldError(id));
+}
+
+// ══════════════════════════════════════
 // 認證
 // ══════════════════════════════════════
 function showRegister() { document.getElementById('login-form').classList.add('hidden'); document.getElementById('register-form').classList.remove('hidden'); }
@@ -40,13 +75,27 @@ async function doRegister() {
     const name = document.getElementById('reg-name').value.trim();
     const err = document.getElementById('reg-error');
     err.textContent = '';
-    if (!id || !pw || !name) { err.textContent = '請填寫所有欄位'; return; }
+    clearAllFieldErrors(['reg-id', 'reg-name', 'reg-pw']);
+
+    // 即時驗證
+    let hasError = false;
+    if (!id) { showFieldError('reg-id', '請輸入員工編號'); hasError = true; }
+    if (!name) { showFieldError('reg-name', '請輸入姓名'); hasError = true; }
+    if (!pw) { showFieldError('reg-pw', '請輸入密碼'); hasError = true; }
+    else if (pw.length < 4) { showFieldError('reg-pw', '密碼至少需要 4 個字元'); hasError = true; }
+    if (hasError) return;
+
+    const btn = document.getElementById('register-btn');
+    setButtonLoading(btn, true);
     try {
         const res = await fetchWithTimeout(`${API}/auth/register`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({employee_id:id,password:pw,name}) });
         const data = await res.json();
         if (!res.ok) { err.textContent = data.detail || '註冊失敗'; return; }
-        alert('註冊成功！請登入'); showLogin(); document.getElementById('login-id').value = id;
+        showToast('註冊成功！請登入');
+        showLogin();
+        document.getElementById('login-id').value = id;
     } catch(e) { err.textContent = e.message === 'API 請求逾時，請檢查網路連線' ? e.message : '無法連線到伺服器'; }
+    finally { setButtonLoading(btn, false); }
 }
 
 async function doLogin() {
@@ -54,7 +103,16 @@ async function doLogin() {
     const pw = document.getElementById('login-pw').value.trim();
     const err = document.getElementById('login-error');
     err.textContent = '';
-    if (!id || !pw) { err.textContent = '請填寫所有欄位'; return; }
+    clearAllFieldErrors(['login-id', 'login-pw']);
+
+    // 即時驗證
+    let hasError = false;
+    if (!id) { showFieldError('login-id', '請輸入員工編號'); hasError = true; }
+    if (!pw) { showFieldError('login-pw', '請輸入密碼'); hasError = true; }
+    if (hasError) return;
+
+    const btn = document.getElementById('login-btn');
+    setButtonLoading(btn, true);
     try {
         const res = await fetchWithTimeout(`${API}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({employee_id:id,password:pw}) });
         const data = await res.json();
@@ -67,6 +125,7 @@ async function doLogin() {
         initPainChart();
         initMedicationTimeline();
     } catch(e) { err.textContent = e.message === 'API 請求逾時，請檢查網路連線' ? e.message : '無法連線到伺服器，請確認後端已啟動'; }
+    finally { setButtonLoading(btn, false); }
 }
 
 function doLogout() { authToken=null; currentUser=null; document.getElementById('main-screen').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
@@ -123,15 +182,35 @@ async function submitPatient() {
     const dx = document.getElementById('pt-dx').value.trim();
     const allergiesStr = document.getElementById('pt-allergies').value.trim();
     const allergies = allergiesStr ? allergiesStr.split(/[,，]/).map(s=>s.trim()).filter(Boolean) : [];
-    if (!name || !bed) { alert('請至少填寫姓名和床號'); return; }
+
+    // 表單驗證
+    let hasError = false;
+    if (!name) {
+        const el = document.getElementById('pt-name');
+        if (el) el.classList.add('input-error');
+        hasError = true;
+    }
+    if (!bed) {
+        const el = document.getElementById('pt-bed');
+        if (el) el.classList.add('input-error');
+        hasError = true;
+    }
+    if (hasError) { showToast('請至少填寫姓名和床號'); return; }
+
+    const btn = document.getElementById('submit-patient-btn');
+    setButtonLoading(btn, true);
     try {
         const res = await fetchWithTimeout(`${API}/patients`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,bed,dx,age,allergies}) });
         if (!res.ok) throw new Error('新增失敗');
         hideAddPatient();
-        ['pt-name','pt-bed','pt-age','pt-dx','pt-allergies','pt-note'].forEach(id => document.getElementById(id).value = '');
+        ['pt-name','pt-bed','pt-age','pt-dx','pt-allergies','pt-note'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.value = ''; el.classList.remove('input-error'); }
+        });
         await loadPatients();
         showToast(`✓ 已成功新增病患「${name}」`);
-    } catch(e) { alert('新增病患失敗：' + e.message); }
+    } catch(e) { showToast('新增病患失敗：' + e.message); }
+    finally { setButtonLoading(btn, false); }
 }
 
 async function removePatient() {
@@ -553,7 +632,10 @@ function renderHandover() {
 // ══════════════════════════════════════
 function toggleMobileNav() {
     const nav = document.querySelector('.header-nav');
+    const btn = document.querySelector('.hamburger-btn');
     nav.classList.toggle('nav-open');
+    const isOpen = nav.classList.contains('nav-open');
+    if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 }
 
 // ══════════════════════════════════════
@@ -654,6 +736,8 @@ removePatient = async function() {
 function showToast(message, duration = 2500) {
     const el = document.createElement('div');
     el.className = 'toast-notify';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
     el.textContent = message;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
@@ -662,3 +746,66 @@ function showToast(message, duration = 2500) {
         el.addEventListener('transitionend', () => el.remove());
     }, duration);
 }
+
+// ══════════════════════════════════════
+// 即時表單驗證 (blur 事件)
+// ══════════════════════════════════════
+function setupFieldValidation(inputId, validator) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('blur', () => {
+        const val = input.value.trim();
+        const error = validator(val);
+        if (error) showFieldError(inputId, error);
+        else clearFieldError(inputId);
+    });
+    input.addEventListener('input', () => {
+        // 使用者開始輸入時清除錯誤
+        clearFieldError(inputId);
+        input.classList.remove('input-error');
+    });
+}
+
+// 初始化即時驗證
+document.addEventListener('DOMContentLoaded', () => {
+    // 登入表單驗證
+    setupFieldValidation('login-id', v => !v ? '請輸入員工編號' : '');
+    setupFieldValidation('login-pw', v => !v ? '請輸入密碼' : '');
+
+    // 註冊表單驗證
+    setupFieldValidation('reg-id', v => !v ? '請輸入員工編號' : '');
+    setupFieldValidation('reg-name', v => !v ? '請輸入姓名' : '');
+    setupFieldValidation('reg-pw', v => {
+        if (!v) return '請輸入密碼';
+        if (v.length < 4) return '密碼至少需要 4 個字元';
+        return '';
+    });
+
+    // 新增病患表單 — input 事件清除錯誤
+    ['pt-name', 'pt-bed'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => el.classList.remove('input-error'));
+    });
+
+    // 手動輸入區 Enter 鍵送出 (Ctrl+Enter 或 Cmd+Enter)
+    const manualText = document.getElementById('manual-text');
+    if (manualText) {
+        manualText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                sendManualText();
+            }
+        });
+    }
+
+    // 轉錄結果區 Enter 鍵送出
+    const transcriptText = document.getElementById('transcript-text');
+    if (transcriptText) {
+        transcriptText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                sendToBrain();
+            }
+        });
+    }
+});

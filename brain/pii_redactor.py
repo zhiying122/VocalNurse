@@ -43,7 +43,9 @@ def redact_pii(text: str) -> str:
 
     # 姓名（僅在有上下文提示時遮罩，避免誤判）
     def mask_name(match):
-        prefix = match.group(0)[:match.start(1) - match.start(0)]
+        full = match.group(0)
+        name = match.group(1)
+        prefix = full[: len(full) - len(name)]
         return prefix + '[姓名已遮罩]'
     text = NAME_CONTEXT_PATTERN.sub(mask_name, text)
 
