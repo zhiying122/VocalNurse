@@ -43,14 +43,18 @@ USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 AUTH_LOG_FILE = os.path.join(os.path.dirname(__file__), "auth_log.json")
 
 
-def _hash_password(password: str, salt: str = None) -> tuple[str, str]:
+def _hash_password(password: str, salt: str = None, iterations: int = PBKDF2_ITERATIONS) -> tuple[str, str]:
     """密碼雜湊：使用 PBKDF2-SHA256 搭配隨機鹽值"""
     if salt is None:
         salt = secrets.token_hex(16)
     hashed = hashlib.pbkdf2_hmac(
-        "sha256", password.encode(), salt.encode(), PBKDF2_ITERATIONS
+        "sha256", password.encode(), salt.encode(), iterations
     ).hex()
     return hashed, salt
+
+
+# 舊版迭代次數（用於向下相容，自動遷移舊密碼）
+_OLD_ITERATIONS = 100000
 
 
 def _load_users() -> dict:
@@ -129,17 +133,36 @@ def register(employee_id: str, password: str, name: str, role: str = "nurse") ->
 
 
 def login(employee_id: str, password: str) -> dict:
-    """護理師登入：驗證帳密，回傳 JWT token"""
+    """
+    護理師登入：驗證帳密，回傳 JWT token。
+
+    密碼遷移機制：
+        如果用新的迭代次數（600,000）驗證失敗，會嘗試用舊的迭代次數（100,000）。
+        若舊的成功，表示這是升級前建立的帳號，會自動用新的迭代次數重新雜湊密碼並更新。
+        這樣舊帳號不會因為升級雜湊強度而被鎖死。
+    """
     users = _load_users()
     user = users.get(employee_id)
     if not user:
         _log_auth_event(employee_id, "login", False)
         return {"success": False, "message": "員工編號不存在"}
 
+    # 先用新的迭代次數驗證
     hashed, _ = _hash_password(password, user["salt"])
     if hashed != user["password_hash"]:
-        _log_auth_event(employee_id, "login", False)
-        return {"success": False, "message": "密碼錯誤"}
+        # 新的不對，嘗試用舊的迭代次數（向下相容）
+        old_hashed, _ = _hash_password(password, user["salt"], iterations=_OLD_ITERATIONS)
+        if old_hashed == user["password_hash"]:
+            # 舊密碼驗證成功 → 自動遷移到新的迭代次數
+            new_hashed, new_salt = _hash_password(password)
+            users[employee_id]["password_hash"] = new_hashed
+            users[employee_id]["salt"] = new_salt
+            _save_users(users)
+            print(f"[Auth] 已自動遷移 {employee_id} 的密碼雜湊到新的迭代次數")
+        else:
+            # 新舊都不對，密碼真的錯了
+            _log_auth_event(employee_id, "login", False)
+            return {"success": False, "message": "密碼錯誤"}
 
     token = jwt.encode(
         {
