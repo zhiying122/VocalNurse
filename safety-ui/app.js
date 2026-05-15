@@ -708,7 +708,15 @@ async function confirmSave() {
         pain_scale: currentOutput.pain_scale,
         warnings: currentAlerts.map(a => a.message || ''),
         raw_text: currentOutput.raw_text || '',
-        shift: getCurrentShift()
+        shift: getCurrentShift(),
+        alerts: currentAlerts.map(a => ({
+            type: a.type || '',
+            severity: a.severity || '',
+            item: a.item || '',
+            detected: a.detected || '',
+            range: a.range || '',
+            message: a.message || ''
+        }))
     };
 
     try {
@@ -933,7 +941,9 @@ async function renderHandover() {
                 soap: r.soap,
                 medications: r.medications || [],
                 pain_scale: r.pain_scale,
-                alerts: (r.warnings || []).map(w => typeof w === 'string' ? { message: w } : w),
+                alerts: (r.alerts && r.alerts.length)
+                    ? r.alerts
+                    : (r.warnings || []).map(w => typeof w === 'string' ? { message: w } : w),
                 time,
                 date: r.created_at ? r.created_at.slice(0, 10) : createdAt.toISOString().slice(0, 10),
                 raw: r.raw_text || '',

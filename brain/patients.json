@@ -1,31 +1,46 @@
 [
   {
-    "id": "P8EE7C3",
-    "name": "林芝",
-    "bed": "2",
-    "mrn": "M252D1DB0",
-    "dx": "便祕",
-    "age": 16,
-    "allergies": []
-  },
-  {
-    "id": "P900D04",
-    "name": "黃朝曦",
-    "bed": "4A-03",
-    "mrn": "M621FF9E6",
-    "dx": "大拇指骨折",
-    "age": 58,
+    "id": "PCCFC50",
+    "name": "王志明",
+    "bed": "5A-01",
+    "mrn": "M8202E1C4",
+    "dx": "急性呼吸喘合併胸悶D-2",
+    "age": 51,
     "allergies": [
-      "ibuprofen"
+      "Cephalosporins"
     ]
   },
   {
-    "id": "P38A56C",
-    "name": "陳懷恩",
-    "bed": "ICU-06",
-    "mrn": "M59794C0E",
-    "dx": "急性闌尾炎",
-    "age": 52,
-    "allergies": []
+    "id": "P53CB8C",
+    "name": "陳怡君",
+    "bed": "ICU-14",
+    "mrn": "MA68DA225",
+    "dx": "嚴重車禍致多重創傷合併雙側氣胸 術後D-4",
+    "age": 27,
+    "allergies": [
+      "NSAIDs"
+    ]
+  },
+  {
+    "id": "PD7C1BE",
+    "name": "林冠宇",
+    "bed": "9B-02",
+    "mrn": "MD3D86B91",
+    "dx": "右側輸尿管結石合併雙 J 導管置入術後D-3",
+    "age": 42,
+    "allergies": [
+      "Sulfa drugs"
+    ]
+  },
+  {
+    "id": "PD5AE81",
+    "name": "黃春枝",
+    "bed": "5A-04",
+    "mrn": "M03C5D8CC",
+    "dx": "急性缺血性腦中風轉入復健期D-5",
+    "age": 67,
+    "allergies": [
+      "NKA"
+    ]
   }
 ]
