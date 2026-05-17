@@ -11,16 +11,21 @@ SOAP 護理紀錄管理模組（JSON 檔案儲存）
 - 使用 JSON 檔案（records.json）儲存所有紀錄
 - 紀錄 ID 格式：R + 6 位大寫十六進位字元（例如 R3A5B2C）
 - 時間戳記：ISO 8601 格式，UTC 時區
+- 使用 threading.Lock 防止並發寫入造成資料遺失
 """
 import json
 import math
 import os
+import threading
 import uuid
 from datetime import datetime, timezone
 
 import patients as _patients_mod
 
 RECORDS_FILE = os.path.join(os.path.dirname(__file__), "records.json")
+
+# 全域寫入鎖：防止多個請求同時寫入 records.json 造成資料遺失
+_write_lock = threading.Lock()
 
 
 def _load() -> list[dict]:
@@ -78,36 +83,37 @@ def add_record(
     # ── 步驟 2：產生建立時間戳記（UTC） ──
     created_at = datetime.now(timezone.utc).isoformat()
 
-    # ── 步驟 3：重複紀錄檢查 ──
-    records = _load()
-    for r in records:
-        if (
-            r["patient_id"] == patient_id
-            and r["created_at"] == created_at
-            and r["nurse_id"] == nurse_id
-        ):
-            return r
+    with _write_lock:
+        # ── 步驟 3：重複紀錄檢查 ──
+        records = _load()
+        for r in records:
+            if (
+                r["patient_id"] == patient_id
+                and r["created_at"] == created_at
+                and r["nurse_id"] == nurse_id
+            ):
+                return r
 
-    # ── 步驟 4：組裝新紀錄 ──
-    record = {
-        "id": f"R{uuid.uuid4().hex[:6].upper()}",
-        "patient_id": patient_id,
-        "soap": soap,
-        "medications": medications,
-        "pain_scale": pain_scale,
-        "warnings": warnings,
-        "raw_text": raw_text,
-        "nurse_id": nurse_id,
-        "nurse_name": nurse_name,
-        "shift": shift,
-        "created_at": created_at,
-        "alerts": alerts if alerts is not None else [],
-    }
+        # ── 步驟 4：組裝新紀錄 ──
+        record = {
+            "id": f"R{uuid.uuid4().hex[:6].upper()}",
+            "patient_id": patient_id,
+            "soap": soap,
+            "medications": medications,
+            "pain_scale": pain_scale,
+            "warnings": warnings,
+            "raw_text": raw_text,
+            "nurse_id": nurse_id,
+            "nurse_name": nurse_name,
+            "shift": shift,
+            "created_at": created_at,
+            "alerts": alerts if alerts is not None else [],
+        }
 
-    # ── 步驟 5：寫入檔案 ──
-    records.append(record)
-    _save(records)
-    return record
+        # ── 步驟 5：寫入檔案 ──
+        records.append(record)
+        _save(records)
+        return record
 
 
 def get_patient_records(patient_id: str) -> list[dict]:
@@ -149,6 +155,9 @@ def list_records(
     if date_filter is not None:
         records = [r for r in records if r["created_at"][:10] == date_filter]
 
+    # 按 created_at 降序排序（最新的在前面）
+    records.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+
     total = len(records)
     total_pages = max(1, math.ceil(total / page_size))
 
@@ -184,25 +193,43 @@ def update_record(record_id: str, updates: dict) -> dict | None:
     # 僅允許更新的欄位白名單
     ALLOWED_FIELDS = {"soap", "medications", "pain_scale", "warnings"}
 
-    records = _load()
+    with _write_lock:
+        records = _load()
 
-    for i, r in enumerate(records):
-        if r["id"] == record_id:
-            # 只更新允許的欄位
-            for key, value in updates.items():
-                if key in ALLOWED_FIELDS and value is not None:
-                    # 如果是 Pydantic model，轉為 dict
-                    if hasattr(value, "model_dump"):
-                        records[i][key] = value.model_dump()
-                    elif isinstance(value, list):
-                        records[i][key] = [
-                            item.model_dump() if hasattr(item, "model_dump") else item
-                            for item in value
-                        ]
-                    else:
-                        records[i][key] = value
+        for i, r in enumerate(records):
+            if r["id"] == record_id:
+                # 只更新允許的欄位
+                for key, value in updates.items():
+                    if key in ALLOWED_FIELDS and value is not None:
+                        # 如果是 Pydantic model，轉為 dict
+                        if hasattr(value, "model_dump"):
+                            records[i][key] = value.model_dump()
+                        elif isinstance(value, list):
+                            records[i][key] = [
+                                item.model_dump() if hasattr(item, "model_dump") else item
+                                for item in value
+                            ]
+                        else:
+                            records[i][key] = value
 
-            _save(records)
-            return records[i]
+                _save(records)
+                return records[i]
 
     return None
+
+
+def delete_record(record_id: str, nurse_id: str) -> bool:
+    """
+    刪除指定紀錄。只有建立者才能刪除。
+    回傳 True 表示成功，False 表示找不到或無權限。
+    """
+    with _write_lock:
+        records = _load()
+        for i, r in enumerate(records):
+            if r["id"] == record_id:
+                if r.get("nurse_id") != nurse_id:
+                    raise PermissionError("無權限刪除他人建立的紀錄")
+                records.pop(i)
+                _save(records)
+                return True
+    return False
