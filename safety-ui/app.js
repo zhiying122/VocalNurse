@@ -1061,6 +1061,20 @@ function toggleTimelineDetail(el) {
     if (detail) detail.classList.toggle('hidden');
 }
 
+/**
+ * 展開/收合交班報告中的 SOAP 詳細內容。
+ * renderHandover() 產生的每筆紀錄 div 都有 onclick="toggleHoSoap(this)"，
+ * 點擊後切換 .ho-soap-detail 的 hidden class，顯示或隱藏 SOAP 四欄位。
+ * 同時更新展開提示文字（▼ 展開 SOAP ↔ ▲ 收合 SOAP）。
+ */
+function toggleHoSoap(el) {
+    const detail = el.querySelector('.ho-soap-detail');
+    if (!detail) return;
+    const isHidden = detail.classList.toggle('hidden');
+    const hint = el.querySelector('.ho-expand-hint');
+    if (hint) hint.textContent = isHidden ? '▼ 展開 SOAP' : '▲ 收合 SOAP';
+}
+
 async function editHistoryRecord(recordId, recordIdx) {
     const record = (allRecords[currentPatient.id] || [])[recordIdx];
     if (!record) return;
