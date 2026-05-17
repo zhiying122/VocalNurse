@@ -257,7 +257,18 @@ async function autoSync() {
                 pain_scale: record.pain_scale,
                 warnings: (record.alerts || []).map(a => typeof a === 'string' ? a : (a.message || '')),
                 raw_text: record.raw || '',
-                shift: record.shift || ''
+                shift: record.shift || '',
+                alerts: (record.alerts || []).map(a => typeof a === 'string'
+                    ? { type: '', severity: 'warning', item: '', detected: '', range: '', message: a }
+                    : {
+                        type: a.type || '',
+                        severity: a.severity || '',
+                        item: a.item || '',
+                        detected: a.detected || '',
+                        range: a.range || '',
+                        message: a.message || ''
+                    }
+                )
             };
 
             // 使用 app.js 的 fetchWithTimeout 和 getAuthHeaders
@@ -304,7 +315,6 @@ function updateNetworkStatus(isOnline) {
     const indicator = document.getElementById('network-status');
     if (indicator) {
         indicator.textContent = isOnline ? '● 線上' : '● 離線';
-        indicator.className = isOnline ? 'net-online' : 'net-offline';
         indicator.className = isOnline ? 'net-online' : 'net-offline';
     }
 }

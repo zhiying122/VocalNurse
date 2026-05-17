@@ -19,6 +19,7 @@ import os
 import time
 import logging
 from collections import defaultdict
+from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
@@ -28,7 +29,7 @@ from brain import process
 from auth import register, login, verify_token
 from stt_service import transcribe_audio
 from correction_dict import preprocess
-from patients import list_patients, add_patient, delete_patient
+from patients import list_patients, add_patient, delete_patient, update_patient
 from dotenv import load_dotenv
 import records  # 護理紀錄模組
 
@@ -227,6 +228,38 @@ def api_login(req: LoginReq):
     return r
 
 
+@app.post("/auth/refresh")
+def api_refresh_token(user: dict = Depends(get_current_user)):
+    """
+    刷新 JWT token。
+    在 token 快過期時呼叫，回傳新的 token（有效期重置為 8 小時）。
+    需要攜帶目前有效的 token 才能刷新。
+    """
+    from auth import _load_users, SECRET_KEY, ALGORITHM, TOKEN_EXPIRE_HOURS
+    from datetime import timedelta
+    from jose import jwt as jose_jwt
+
+    users = _load_users()
+    user_data = users.get(user["employee_id"])
+    if not user_data:
+        raise HTTPException(404, "使用者不存在")
+
+    new_token = jose_jwt.encode(
+        {
+            "sub": user["employee_id"],
+            "name": user_data["name"],
+            "role": user_data["role"],
+            "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS),
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+    return {
+        "token": new_token,
+        "user": {"employee_id": user["employee_id"], "name": user_data["name"], "role": user_data["role"]},
+    }
+
+
 @app.get("/auth/login-attempts/{employee_id}")
 def api_login_attempts(employee_id: str, user: dict = Depends(get_current_user)):
     """
@@ -282,22 +315,49 @@ class PatientReq(BaseModel):
             raise ValueError("年齡必須在 0 到 150 之間")
         return v
 
+class PatientUpdateReq(BaseModel):
+    """更新病患資料的請求格式（所有欄位可選）"""
+    name: Optional[str] = None
+    bed: Optional[str] = None
+    dx: Optional[str] = None
+    age: Optional[int] = None
+    allergies: Optional[list[str]] = None
+
+    @field_validator("age")
+    @classmethod
+    def age_range(cls, v):
+        if v is not None and (v < 0 or v > 150):
+            raise ValueError("年齡必須在 0 到 150 之間")
+        return v
+
 @app.get("/patients")
-def api_list_patients():
-    """取得所有病患列表"""
+def api_list_patients(user: dict = Depends(get_current_user)):
+    """取得所有病患列表（需要登入）"""
     return list_patients()
 
 @app.post("/patients")
-def api_add_patient(req: PatientReq):
-    """新增一位病患"""
+def api_add_patient(req: PatientReq, user: dict = Depends(get_current_user)):
+    """新增一位病患（需要登入）"""
     return add_patient(req.name, req.bed, req.dx, req.age, req.allergies)
 
 @app.delete("/patients/{patient_id}")
-def api_delete_patient(patient_id: str):
-    """刪除指定病患"""
+def api_delete_patient(patient_id: str, user: dict = Depends(get_current_user)):
+    """刪除指定病患（需要登入）"""
     if not delete_patient(patient_id):
         raise HTTPException(404, "病患不存在")
     return {"success": True}
+
+
+@app.put("/patients/{patient_id}")
+def api_update_patient(patient_id: str, req: PatientUpdateReq, user: dict = Depends(get_current_user)):
+    """更新病患資料（床號、診斷、過敏原等）"""
+    updates = req.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(400, "未提供任何更新欄位")
+    result = update_patient(patient_id, updates)
+    if result is None:
+        raise HTTPException(404, "病患不存在")
+    return result
 
 
 # ══════════════════════════════════════════════════════════
@@ -438,23 +498,46 @@ def api_update_record(
     編輯指定紀錄的部分欄位（JWT 保護）。
 
     僅允許更新：soap 欄位、medications、pain_scale、warnings。
+    只有紀錄的原始建立者才能修改。
     """
-    updates = req.model_dump(exclude_unset=True)
+    # 先取得紀錄，確認建立者身份
+    all_recs = records.list_records()
+    target = next((r for r in all_recs.get("records", []) if r["id"] == record_id), None)
+    if target is None:
+        raise HTTPException(404, "紀錄不存在")
+    if target.get("nurse_id") != user["employee_id"]:
+        raise HTTPException(403, "無權限修改他人建立的紀錄")
+
+    updates = req.model_dump(exclude_unset=True, mode="python")
     if not updates:
         raise HTTPException(400, "未提供任何更新欄位")
 
-    # 將 SOAPEntry 轉為 dict
+    # 將 Pydantic model 序列化為純 dict，確保 records.update_record 收到的是可 JSON 序列化的資料
     if "soap" in updates and updates["soap"] is not None:
-        updates["soap"] = updates["soap"]
+        if hasattr(updates["soap"], "model_dump"):
+            updates["soap"] = updates["soap"].model_dump()
     if "medications" in updates and updates["medications"] is not None:
         updates["medications"] = [
-            m if isinstance(m, dict) else m for m in updates["medications"]
+            m.model_dump() if hasattr(m, "model_dump") else m
+            for m in updates["medications"]
         ]
 
     result = records.update_record(record_id, updates)
     if result is None:
         raise HTTPException(404, "紀錄不存在")
     return result
+
+
+@app.delete("/records/{record_id}")
+def api_delete_record(record_id: str, user: dict = Depends(get_current_user)):
+    """刪除指定紀錄（只有建立者才能刪除）"""
+    try:
+        success = records.delete_record(record_id, user["employee_id"])
+        if not success:
+            raise HTTPException(404, "紀錄不存在")
+        return {"success": True}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
 
 
 # ══════════════════════════════════════════════════════════

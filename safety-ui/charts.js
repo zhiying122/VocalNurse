@@ -37,7 +37,7 @@ function initPainChart() {
 
 function updatePainChart() {
     if (!painChart || !currentPatient) return;
-    const records = allRecords[currentPatient.id].filter(r => r.pain_scale != null);
+    const records = (allRecords[currentPatient.id] || []).filter(r => r.pain_scale != null);
 
     painChart.data.labels = records.map(r => r.time);
     painChart.data.datasets[0].data = records.map(r => r.pain_scale);
@@ -53,7 +53,7 @@ function updatePainChart() {
 let medTimeline = null;
 
 function initMedicationTimeline() {
-    const ctx = document.getElementById('med-timeline');
+    const ctx = document.getElementById('med-timeline-chart');
     if (!ctx) return;
     if (medTimeline) medTimeline.destroy();
 
@@ -110,7 +110,7 @@ function initMedicationTimeline() {
 
 function updateMedicationTimeline(records, alerts) {
     const emptyEl = document.getElementById('med-timeline-empty');
-    const canvasEl = document.getElementById('med-timeline');
+    const canvasEl = document.getElementById('med-timeline-chart');
     if (!canvasEl) return;
 
     const events = [];

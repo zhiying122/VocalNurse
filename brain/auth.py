@@ -11,6 +11,7 @@ import json
 import os
 import hashlib
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 from jose import jwt
 from dotenv import load_dotenv
@@ -41,6 +42,10 @@ PBKDF2_ITERATIONS = 600000
 
 USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 AUTH_LOG_FILE = os.path.join(os.path.dirname(__file__), "auth_log.json")
+
+# 全域鎖：防止並發讀寫 users.json 和 auth_log.json
+_users_lock = threading.Lock()
+_log_lock = threading.Lock()
 
 
 def _hash_password(password: str, salt: str = None, iterations: int = PBKDF2_ITERATIONS) -> tuple[str, str]:
@@ -106,28 +111,30 @@ def _log_auth_event(employee_id: str, event_type: str, success: bool):
 
     # 寫入檔案
     try:
-        with open(AUTH_LOG_FILE, "w", encoding="utf-8") as f:
-            json.dump(logs, f, ensure_ascii=False, indent=2)
+        with _log_lock:
+            with open(AUTH_LOG_FILE, "w", encoding="utf-8") as f:
+                json.dump(logs, f, ensure_ascii=False, indent=2)
     except IOError:
         pass  # 日誌寫入失敗不應影響主要功能
 
 
 def register(employee_id: str, password: str, name: str, role: str = "nurse") -> dict:
     """護理師註冊：建立新帳號"""
-    users = _load_users()
-    if employee_id in users:
-        _log_auth_event(employee_id, "register", False)
-        return {"success": False, "message": "此員工編號已註冊"}
+    with _users_lock:
+        users = _load_users()
+        if employee_id in users:
+            _log_auth_event(employee_id, "register", False)
+            return {"success": False, "message": "此員工編號已註冊"}
 
-    hashed, salt = _hash_password(password)
-    users[employee_id] = {
-        "name": name,
-        "role": role,
-        "password_hash": hashed,
-        "salt": salt,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    _save_users(users)
+        hashed, salt = _hash_password(password)
+        users[employee_id] = {
+            "name": name,
+            "role": role,
+            "password_hash": hashed,
+            "salt": salt,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_users(users)
     _log_auth_event(employee_id, "register", True)
     return {"success": True, "message": "註冊成功"}
 
@@ -141,34 +148,37 @@ def login(employee_id: str, password: str) -> dict:
         若舊的成功，表示這是升級前建立的帳號，會自動用新的迭代次數重新雜湊密碼並更新。
         這樣舊帳號不會因為升級雜湊強度而被鎖死。
     """
-    users = _load_users()
-    user = users.get(employee_id)
-    if not user:
-        _log_auth_event(employee_id, "login", False)
-        return {"success": False, "message": "員工編號不存在"}
-
-    # 先用新的迭代次數驗證
-    hashed, _ = _hash_password(password, user["salt"])
-    if hashed != user["password_hash"]:
-        # 新的不對，嘗試用舊的迭代次數（向下相容）
-        old_hashed, _ = _hash_password(password, user["salt"], iterations=_OLD_ITERATIONS)
-        if old_hashed == user["password_hash"]:
-            # 舊密碼驗證成功 → 自動遷移到新的迭代次數
-            new_hashed, new_salt = _hash_password(password)
-            users[employee_id]["password_hash"] = new_hashed
-            users[employee_id]["salt"] = new_salt
-            _save_users(users)
-            print(f"[Auth] 已自動遷移 {employee_id} 的密碼雜湊到新的迭代次數")
-        else:
-            # 新舊都不對，密碼真的錯了
+    with _users_lock:
+        users = _load_users()
+        user = users.get(employee_id)
+        if not user:
             _log_auth_event(employee_id, "login", False)
-            return {"success": False, "message": "密碼錯誤"}
+            return {"success": False, "message": "員工編號不存在"}
+
+        # 先用新的迭代次數驗證
+        hashed, _ = _hash_password(password, user["salt"])
+        if hashed != user["password_hash"]:
+            # 新的不對，嘗試用舊的迭代次數（向下相容）
+            old_hashed, _ = _hash_password(password, user["salt"], iterations=_OLD_ITERATIONS)
+            if old_hashed == user["password_hash"]:
+                # 舊密碼驗證成功 → 自動遷移到新的迭代次數
+                new_hashed, new_salt = _hash_password(password)
+                users[employee_id]["password_hash"] = new_hashed
+                users[employee_id]["salt"] = new_salt
+                _save_users(users)
+                print(f"[Auth] 已自動遷移 {employee_id} 的密碼雜湊到新的迭代次數")
+            else:
+                # 新舊都不對，密碼真的錯了
+                _log_auth_event(employee_id, "login", False)
+                return {"success": False, "message": "密碼錯誤"}
+
+        user_info = {"name": user["name"], "role": user["role"]}
 
     token = jwt.encode(
         {
             "sub": employee_id,
-            "name": user["name"],
-            "role": user["role"],
+            "name": user_info["name"],
+            "role": user_info["role"],
             "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS),
         },
         SECRET_KEY,
@@ -178,7 +188,7 @@ def login(employee_id: str, password: str) -> dict:
     return {
         "success": True,
         "token": token,
-        "user": {"employee_id": employee_id, "name": user["name"], "role": user["role"]},
+        "user": {"employee_id": employee_id, "name": user_info["name"], "role": user_info["role"]},
     }
 
 

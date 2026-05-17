@@ -1360,6 +1360,16 @@ body {
   gap: var(--space-md);
 }
 
+.ho-warning {
+  color: #c62828;
+  background: #fff3e0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: .9rem;
+  border-left: 3px solid #f57c00;
+}
+
 .ho-patient {
   background: var(--card);
   border-radius: var(--radius-md);

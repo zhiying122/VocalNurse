@@ -21,8 +21,8 @@ NAME_CONTEXT_PATTERN = re.compile(
 # Email
 EMAIL_PATTERN = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
 
-# 地址（含「路」「街」「巷」「弄」「號」「樓」）
-ADDRESS_PATTERN = re.compile(r'[\u4e00-\u9fff]{2,}(?:路|街|巷|弄|號|樓)[\u4e00-\u9fff0-9]*')
+# 地址（含「路」「街」「巷」「弄」「號」「樓」，需要有數字才觸發，避免誤判醫療術語）
+ADDRESS_PATTERN = re.compile(r'[\u4e00-\u9fff]{2,}(?:路|街|巷|弄)\d+號(?:\d+樓)?')
 
 
 def redact_pii(text: str) -> str:

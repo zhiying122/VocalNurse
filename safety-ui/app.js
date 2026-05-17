@@ -62,6 +62,8 @@ let currentUser = null;     // 目前登入的護理師 { employee_id, name, rol
 let currentPatient = null;  // 目前選中的病患
 let currentAlerts = [];     // 目前 SOAP 的安全警示
 let currentOutput = null;   // 目前 LLM 生成的 SOAP 輸出
+let currentRecordId = null; // 目前已儲存到後端的紀錄 ID（用於編輯功能）
+let _tokenRefreshTimer = null; // token 自動刷新計時器
 let allRecords = {};        // 所有病患的紀錄快取（key=病患ID, value=紀錄陣列）
 let totalAlerts = 0;        // 累計警示數量
 let patients = [];          // 所有病患列表
@@ -101,6 +103,40 @@ function getAuthHeaders() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`
     };
+}
+
+/**
+ * 啟動 JWT token 自動刷新（每 7 小時刷新，token 有效期 8 小時）
+ */
+function startTokenRefresh() {
+    stopTokenRefresh();
+    _tokenRefreshTimer = setInterval(async () => {
+        if (!authToken) return;
+        try {
+            const res = await fetchWithTimeout(`${API}/auth/refresh`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                const data = await res.json();
+                authToken = data.token;
+                console.log('[Auth] Token 已自動刷新');
+            } else if (res.status === 401) {
+                showToast('登入已過期，請重新登入');
+                stopTokenRefresh();
+                doLogout();
+            }
+        } catch (e) {
+            console.warn('[Auth] Token 刷新失敗', e);
+        }
+    }, 7 * 60 * 60 * 1000); // 7 小時
+}
+
+function stopTokenRefresh() {
+    if (_tokenRefreshTimer) {
+        clearInterval(_tokenRefreshTimer);
+        _tokenRefreshTimer = null;
+    }
 }
 
 // ══════════════════════════════════════
@@ -193,6 +229,7 @@ async function doLogin() {
         const data = await res.json();
         if (!res.ok) { err.textContent = data.detail || '登入失敗'; return; }
         authToken = data.token; currentUser = data.user;
+        startTokenRefresh();
         document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('main-screen').classList.remove('hidden');
         document.getElementById('current-nurse').textContent = `護理師：${currentUser.name}`;
@@ -211,6 +248,7 @@ function doLogout() {
     // 【Item 9】登出確認對話框
     if (!confirm('確定要登出嗎？未儲存的紀錄將會遺失。')) return;
     authToken = null;
+    stopTokenRefresh();
     currentUser = null;
     document.getElementById('main-screen').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
@@ -221,7 +259,9 @@ function doLogout() {
 // ══════════════════════════════════════
 async function loadPatients() {
     try {
-        const res = await fetchWithTimeout(`${API}/patients`);
+        const res = await fetchWithTimeout(`${API}/patients`, {
+            headers: getAuthHeaders()
+        });
         patients = await res.json();
     } catch(e) { patients = []; }
     patients.forEach(p => { if (!allRecords[p.id]) allRecords[p.id] = []; });
@@ -232,7 +272,9 @@ async function loadPatients() {
 function renderPatientList() {
     const el = document.getElementById('patient-list');
     if (!patients.length) { el.innerHTML = '<p style="color:#999;font-size:.85rem">尚無病患，請點「新增病患」</p>'; return; }
-    el.innerHTML = patients.map(p => {
+    // 按床號排序（字母+數字自然排序）
+    const sortedPatients = [...patients].sort((a, b) => a.bed.localeCompare(b.bed, 'zh-TW', { numeric: true }));
+    el.innerHTML = sortedPatients.map(p => {
         const ac = (allRecords[p.id]||[]).reduce((s,r) => s + (r.alerts?.length||0), 0);
         return `<div class="patient-chip" id="chip-${p.id}" onclick="selectPatient('${p.id}')">${p.bed} ${p.name}${ac>0?`<span class="chip-alert">⚠${ac}</span>`:''}</div>`;
     }).join('');
@@ -274,11 +316,16 @@ async function selectPatient(id) {
             const createdAt = r.created_at ? new Date(r.created_at) : new Date();
             const time = `${createdAt.getHours().toString().padStart(2,'0')}:${createdAt.getMinutes().toString().padStart(2,'0')}`;
             const date = r.created_at ? r.created_at.slice(0, 10) : createdAt.toISOString().slice(0, 10);
+            // 優先使用後端儲存的 alerts 物件陣列，fallback 到 warnings 字串陣列
+            const alerts = (r.alerts && r.alerts.length > 0)
+                ? r.alerts
+                : (r.warnings || []).map(w => typeof w === 'string' ? { message: w, type: '', severity: 'warning', item: '', detected: '', range: '' } : w);
             return {
+                id: r.id,
                 soap: r.soap,
                 medications: r.medications || [],
                 pain_scale: r.pain_scale,
-                alerts: (r.warnings || []).map(w => typeof w === 'string' ? { message: w } : w),
+                alerts,
                 time,
                 date,
                 raw: r.raw_text || '',
@@ -350,7 +397,7 @@ async function submitPatient() {
     const btn = document.getElementById('submit-patient-btn');
     setButtonLoading(btn, true);
     try {
-        const res = await fetchWithTimeout(`${API}/patients`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,bed,dx,age,allergies}) });
+        const res = await fetchWithTimeout(`${API}/patients`, { method:'POST', headers: getAuthHeaders(), body:JSON.stringify({name,bed,dx,age,allergies}) });
         if (!res.ok) throw new Error('新增失敗');
         hideAddPatient();
         ['pt-name','pt-bed','pt-age','pt-dx','pt-allergies','pt-note'].forEach(id => {
@@ -366,12 +413,79 @@ async function submitPatient() {
 async function removePatient() {
     if (!currentPatient || !confirm(`確定移除 ${currentPatient.name}？`)) return;
     try {
-        await fetchWithTimeout(`${API}/patients/${currentPatient.id}`, { method:'DELETE' });
+        await fetchWithTimeout(`${API}/patients/${currentPatient.id}`, { method:'DELETE', headers: getAuthHeaders() });
         currentPatient = null;
         document.getElementById('patient-info').classList.add('hidden');
         document.getElementById('main-area').style.display = 'none';
         await loadPatients();
     } catch(e) { alert('移除失敗'); }
+}
+
+// ══════════════════════════════════════
+// 病患資料編輯
+// ══════════════════════════════════════
+
+/**
+ * 顯示病患編輯表單（預填現有資料）
+ */
+function showEditPatient() {
+    if (!currentPatient) return;
+    // 預填現有資料
+    document.getElementById('edit-pt-name').value = currentPatient.name || '';
+    document.getElementById('edit-pt-bed').value = currentPatient.bed || '';
+    document.getElementById('edit-pt-age').value = currentPatient.age || '';
+    document.getElementById('edit-pt-dx').value = currentPatient.dx || '';
+    document.getElementById('edit-pt-allergies').value = (currentPatient.allergies || []).join(', ');
+    document.getElementById('edit-patient-form').classList.remove('hidden');
+}
+
+function hideEditPatient() {
+    document.getElementById('edit-patient-form').classList.add('hidden');
+}
+
+async function submitEditPatient() {
+    if (!currentPatient) return;
+    const name = document.getElementById('edit-pt-name').value.trim();
+    const bed = document.getElementById('edit-pt-bed').value.trim();
+    const age = parseInt(document.getElementById('edit-pt-age').value) || currentPatient.age;
+    const dx = document.getElementById('edit-pt-dx').value.trim();
+    const allergiesStr = document.getElementById('edit-pt-allergies').value.trim();
+    const allergies = allergiesStr ? allergiesStr.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [];
+
+    const updates = {};
+    if (name) updates.name = name;
+    if (bed) updates.bed = bed;
+    if (age) updates.age = age;
+    if (dx !== undefined) updates.dx = dx;
+    updates.allergies = allergies;
+
+    const btn = document.getElementById('submit-edit-patient-btn');
+    setButtonLoading(btn, true);
+    try {
+        const res = await fetchWithTimeout(`${API}/patients/${currentPatient.id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(updates)
+        });
+        if (!res.ok) throw new Error('更新失敗');
+        const updated = await res.json();
+        // 更新本地 patients 陣列
+        const idx = patients.findIndex(p => p.id === currentPatient.id);
+        if (idx !== -1) patients[idx] = updated;
+        currentPatient = updated;
+        hideEditPatient();
+        // 重新渲染病患資訊
+        document.getElementById('patient-name').textContent = `${updated.name}（${updated.age}歲）`;
+        document.getElementById('patient-bed').textContent = updated.bed;
+        document.getElementById('patient-dx').innerHTML = updated.dx +
+            (updated.allergies?.length ? ' ' + updated.allergies.map(a => `<span class="allergy-tag">⚠ ${a} 過敏</span>`).join(' ') : '');
+        renderPatientList();
+        showToast(`✓ 病患資料已更新`);
+    } catch (e) {
+        showToast('更新失敗：' + e.message);
+    } finally {
+        setButtonLoading(btn, false);
+    }
 }
 
 // ══════════════════════════════════════
@@ -486,6 +600,7 @@ async function handleRecordingDone() {
             // 直接顯示 SOAP
             currentOutput = data.brain;
             currentAlerts = checkSafety(data.brain, allRecords[currentPatient.id] || []);
+            currentRecordId = null; // 新生成的 SOAP 尚未儲存
             displaySOAP(data.brain);
             if (currentAlerts.length > 0) showAlerts(currentAlerts);
         } catch(e) {
@@ -537,6 +652,7 @@ async function processBrain(rawText) {
         const output = await res.json();
         currentOutput = output;
         currentAlerts = checkSafety(output, allRecords[currentPatient.id] || []);
+        currentRecordId = null; // 新生成的 SOAP 尚未儲存，重置 ID
         document.getElementById('processing').classList.add('hidden');
         displaySOAP(output);
         if (currentAlerts.length > 0) showAlerts(currentAlerts);
@@ -565,6 +681,26 @@ function displaySOAP(o) {
         const s=o.pain_scale, lv=s>=7?'high':s>=4?'mid':'low', cl=s>=7?'#c62828':s>=4?'#f57c00':'#388e3c';
         document.getElementById('pain-display').innerHTML = `<div class="pain-num pain-${lv}">${s}</div><div style="flex:1"><div class="pain-bar"><div class="pain-fill" style="width:${s*10}%;background:${cl}"></div></div><small style="color:#888">0 無痛 ─── 10 劇痛</small></div>`;
     } else painSec.classList.add('hidden');
+    // 為每個 SOAP 欄位加入字數提示
+    ['soap-s', 'soap-o', 'soap-a', 'soap-p'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        // 移除舊的字數提示
+        const oldCounter = el.parentNode.querySelector('.char-counter');
+        if (oldCounter) oldCounter.remove();
+        // 建立字數提示
+        const counter = document.createElement('div');
+        counter.className = 'char-counter';
+        counter.style.cssText = 'font-size:.72rem;color:var(--text-muted);text-align:right;margin-top:2px;';
+        const updateCounter = () => {
+            const len = el.textContent.length;
+            counter.textContent = `${len} / 5000`;
+            counter.style.color = len > 4500 ? '#c62828' : len > 4000 ? '#f57c00' : 'var(--text-muted)';
+        };
+        updateCounter();
+        el.addEventListener('input', updateCounter);
+        el.parentNode.appendChild(counter);
+    });
     document.getElementById('soap-cards').classList.remove('hidden');
 }
 
@@ -636,7 +772,24 @@ function showAlert(a) {
     document.getElementById('alert-val').textContent = a.detected;
     document.getElementById('alert-range').textContent = a.range;
     document.getElementById('alert-overlay').classList.remove('hidden');
-    try { const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=800;g.gain.value=0.3;o.start();setTimeout(()=>{o.stop();ctx.close()},300); } catch(e){}
+    // 使用共享的 AudioContext，避免每次建立新的被瀏覽器封鎖
+    try {
+        if (!window._audioCtx || window._audioCtx.state === 'closed') {
+            window._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window._audioCtx.state === 'suspended') {
+            window._audioCtx.resume();
+        }
+        const o = window._audioCtx.createOscillator();
+        const g = window._audioCtx.createGain();
+        o.connect(g);
+        g.connect(window._audioCtx.destination);
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0.4, window._audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, window._audioCtx.currentTime + 0.5);
+        o.start();
+        o.stop(window._audioCtx.currentTime + 0.5);
+    } catch(e) { console.warn('[Alert] 音效播放失敗', e); }
     trapFocus(document.getElementById('alert-overlay'));
 }
 function ackAlert() {
@@ -739,11 +892,18 @@ async function confirmSave() {
         // Update local records with backend response
         if (!allRecords[currentPatient.id]) allRecords[currentPatient.id] = [];
         allRecords[currentPatient.id].push({
-            ...savedRecord,
+            id: savedRecord.id,
+            soap: savedRecord.soap,
+            medications: savedRecord.medications || [],
+            pain_scale: savedRecord.pain_scale,
             alerts: currentAlerts,
             time,
-            date: now.toISOString().slice(0, 10)
+            date: now.toISOString().slice(0, 10),
+            raw: savedRecord.raw_text || '',
+            nurse_name: savedRecord.nurse_name || '',
+            shift: savedRecord.shift || ''
         });
+        currentRecordId = savedRecord.id; // 記錄剛儲存的紀錄 ID，供編輯功能使用
         totalAlerts += currentAlerts.length;
 
         showToast('✓ 紀錄已儲存');
@@ -834,7 +994,13 @@ function saveOffline() {
             medications: currentOutput.medications,
             pain_scale: currentOutput.pain_scale,
             alerts: currentAlerts,
-            time
+            time,
+            date: now.toISOString().slice(0, 10),
+            raw: currentOutput.raw_text || '',
+            nurse_id: currentUser?.employee_id || '',
+            nurse_name: currentUser?.name || '',
+            shift: getCurrentShift(),
+            synced: false
         }).then(() => {
             const failDiv = document.getElementById('save-fail');
             if (failDiv) failDiv.remove();
@@ -861,13 +1027,78 @@ function renderTimeline() {
     if (!currentPatient) return;
     const records = allRecords[currentPatient.id] || [];
     const el = document.getElementById('timeline');
-    if (!records.length) { el.innerHTML='<p style="color:#999;font-size:.85rem">尚無紀錄</p>'; return; }
-    el.innerHTML = records.map(r => {
-        const d = r.alerts?.length>0;
-        const meds = r.medications?.map(m=>`${m.name} ${m.dose||''} ${m.unit||''}`).join(', ')||'';
+    if (!records.length) { el.innerHTML = '<p style="color:#999;font-size:.85rem">尚無紀錄</p>'; return; }
+    el.innerHTML = [...records].reverse().map((r, idx) => {
+        const realIdx = records.length - 1 - idx; // 對應原始陣列的索引
+        const d = r.alerts?.length > 0;
+        const meds = r.medications?.map(m => `${m.name} ${m.dose || ''} ${m.unit || ''}`).join(', ') || '';
         const nurseLabel = r.nurse_name ? ` [${r.nurse_name}]` : '';
-        return `<div class="tl-item ${d?'danger':''}"><span class="tl-time">${r.time}${nurseLabel}</span><span>${meds||r.soap?.plan||'護理紀錄'}${d?' ⚠️':''}</span></div>`;
-    }).reverse().join('');
+        const shiftLabel = r.shift ? ` ${r.shift}` : '';
+        const isOwner = r.nurse_name === currentUser?.name || !r.nurse_name;
+        const actionBtns = isOwner && r.id ? `
+            <div class="tl-actions">
+                <button class="btn btn-small btn-outline" onclick="editHistoryRecord('${r.id}', ${realIdx})" style="font-size:.75rem;padding:2px 8px">✏️ 編輯</button>
+                <button class="btn btn-small" onclick="deleteHistoryRecord('${r.id}', ${realIdx})" style="font-size:.75rem;padding:2px 8px;color:var(--danger);border-color:var(--danger)">🗑️ 刪除</button>
+            </div>` : '';
+        return `<div class="tl-item ${d ? 'danger' : ''}" onclick="toggleTimelineDetail(this)">
+            <div class="tl-summary">
+                <span class="tl-time">${r.time}${nurseLabel}${shiftLabel}</span>
+                <span>${meds || r.soap?.plan || '護理紀錄'}${d ? ' ⚠️' : ''}</span>
+            </div>
+            <div class="tl-detail hidden">
+                <div class="tl-soap"><strong>S：</strong>${r.soap?.subjective || '-'}</div>
+                <div class="tl-soap"><strong>O：</strong>${r.soap?.objective || '-'}</div>
+                <div class="tl-soap"><strong>A：</strong>${r.soap?.assessment || '-'}</div>
+                <div class="tl-soap"><strong>P：</strong>${r.soap?.plan || '-'}</div>
+                ${actionBtns}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleTimelineDetail(el) {
+    const detail = el.querySelector('.tl-detail');
+    if (detail) detail.classList.toggle('hidden');
+}
+
+async function editHistoryRecord(recordId, recordIdx) {
+    const record = (allRecords[currentPatient.id] || [])[recordIdx];
+    if (!record) return;
+
+    // 將歷史紀錄載入到 SOAP 卡片進行編輯
+    currentOutput = { soap: record.soap, medications: record.medications || [], pain_scale: record.pain_scale, raw_text: record.raw || '' };
+    currentRecordId = recordId;
+    displaySOAP(currentOutput);
+    document.getElementById('soap-cards').classList.remove('hidden');
+    document.getElementById('save-ok').classList.add('hidden');
+
+    // 切換到編輯模式
+    enableRecordEdit();
+    showToast('已載入紀錄，請編輯後點「儲存修改」');
+    // 捲動到 SOAP 卡片
+    document.getElementById('soap-cards').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function deleteHistoryRecord(recordId, recordIdx) {
+    if (!confirm('確定刪除這筆紀錄？此操作無法復原。')) return;
+    try {
+        const res = await fetchWithTimeout(`${API}/records/${recordId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        if (res.status === 403) { showToast('無權限刪除他人建立的紀錄'); return; }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // 從本地快取移除
+        if (allRecords[currentPatient.id]) {
+            allRecords[currentPatient.id].splice(recordIdx, 1);
+        }
+        renderTimeline();
+        updatePainChart();
+        renderPatientList();
+        showToast('✓ 紀錄已刪除');
+    } catch (e) {
+        showToast('刪除失敗：' + e.message);
+    }
 }
 
 /**
@@ -958,11 +1189,15 @@ async function renderHandover() {
     }
 
     const total = Object.values(handoverRecords).reduce((s,r)=>s+r.length,0);
+    // 從實際載入的紀錄計算警示數，比全域 totalAlerts 更準確
+    const actualAlerts = Object.values(handoverRecords).reduce(
+        (sum, recs) => sum + recs.reduce((s, r) => s + (r.alerts?.length || 0), 0), 0
+    );
     document.getElementById('stat-patients').textContent = patients.length;
-    document.getElementById('stat-alerts').textContent = totalAlerts;
+    document.getElementById('stat-alerts').textContent = actualAlerts;
     document.getElementById('stat-records').textContent = total;
 
-    const warningHtml = showWarning ? '<div class="ho-warning" style="color:#c62828;background:#fff3e0;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:.9rem;">⚠ 資料可能不完整（網路錯誤）</div>' : '';
+    const warningHtml = showWarning ? '<div class="ho-warning">⚠ 資料可能不完整（網路錯誤）</div>' : '';
 
     document.getElementById('handover-patients').innerHTML = warningHtml + patients.map(p => {
         const recs = handoverRecords[p.id]||[];
@@ -970,7 +1205,20 @@ async function renderHandover() {
         return `<div class="ho-patient"><div class="ho-patient-header"><span class="ho-patient-name">${p.name}（${p.age}歲）${ac>0?' ⚠️':''}</span><span class="ho-patient-bed">${p.bed} | ${p.dx}</span></div><div class="ho-records">${recs.length?recs.map(r=>{
             const nurseInfo = r.nurse_name ? ` — 護理師：${r.nurse_name}` : '';
             const shiftInfo = r.shift ? `【${r.shift}】` : '';
-            return `<div class="ho-record ${r.alerts?.length?'has-alert':''}"><strong>${r.time}</strong>${nurseInfo} ${shiftInfo} — Pain: ${r.pain_scale??'-'} | ${r.medications?.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')||'無給藥'}${r.alerts?.length?' ⚠️ 有警示':''}</div>`;
+            const soapHtml = r.soap ? `
+    <div class="ho-soap-detail hidden">
+        <div><strong>S：</strong>${r.soap.subjective || '-'}</div>
+        <div><strong>O：</strong>${r.soap.objective || '-'}</div>
+        <div><strong>A：</strong>${r.soap.assessment || '-'}</div>
+        <div><strong>P：</strong>${r.soap.plan || '-'}</div>
+    </div>` : '';
+            return `<div class="ho-record ${r.alerts?.length?'has-alert':''}" onclick="toggleHoSoap(this)" style="cursor:pointer">
+    <div class="ho-record-summary">
+        <strong>${r.time}</strong>${nurseInfo} ${shiftInfo} — Pain: ${r.pain_scale??'-'} | ${r.medications?.map(m=>`${m.name} ${m.dose||''}${m.unit||''}`).join(', ')||'無給藥'}${r.alerts?.length?' ⚠️ 有警示':''}
+        <span class="ho-expand-hint" style="color:var(--text-muted);font-size:.75rem;margin-left:6px">▼ 展開 SOAP</span>
+    </div>
+    ${soapHtml}
+</div>`;
         }).join(''):'<div class="ho-record">尚無紀錄</div>'}</div></div>`;
     }).join('');
 
@@ -1283,10 +1531,9 @@ async function saveRecordEdit() {
     currentOutput.soap = updatedSoap;
 
     // 如果有紀錄 ID（已儲存到後端的紀錄），透過 API 更新
-    const lastRecord = (allRecords[currentPatient.id] || []).slice(-1)[0];
-    if (lastRecord && lastRecord.id) {
+    if (currentRecordId) {
         try {
-            const res = await fetchWithTimeout(`${API}/records/${lastRecord.id}`, {
+            const res = await fetchWithTimeout(`${API}/records/${currentRecordId}`, {
                 method: 'PUT',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ soap: updatedSoap }),
@@ -1294,11 +1541,15 @@ async function saveRecordEdit() {
             if (res.ok) {
                 showToast('✓ 紀錄已更新');
             } else {
-                showToast('更新失敗：' + (await res.json()).detail);
+                const errData = await res.json().catch(() => ({}));
+                showToast('更新失敗：' + (errData.detail || `HTTP ${res.status}`));
             }
         } catch (e) {
             showToast('更新失敗：網路錯誤');
         }
+    } else {
+        // 尚未儲存到後端（離線紀錄），只更新本地 currentOutput
+        showToast('✓ 已更新（離線模式）');
     }
 
     // 恢復為非編輯模式
