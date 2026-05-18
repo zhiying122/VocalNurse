@@ -80,17 +80,19 @@ def add_record(
     if not any(p["id"] == patient_id for p in patients):
         raise ValueError(f"病患不存在: {patient_id}")
 
-    # ── 步驟 2：產生建立時間戳記（UTC） ──
+    # ── 步驟 2：產生建立時間戳記（UTC，含微秒確保唯一性）──
     created_at = datetime.now(timezone.utc).isoformat()
 
     with _write_lock:
-        # ── 步驟 3：重複紀錄檢查 ──
+        # ── 步驟 3：重複紀錄檢查（同 patient_id + created_at + nurse_id + soap 才算重複）──
+        # 僅防止網路重試造成的真正重複提交，不應攔截同護理師在同一秒的不同紀錄
         records = _load()
         for r in records:
             if (
                 r["patient_id"] == patient_id
                 and r["created_at"] == created_at
                 and r["nurse_id"] == nurse_id
+                and r.get("soap") == soap
             ):
                 return r
 

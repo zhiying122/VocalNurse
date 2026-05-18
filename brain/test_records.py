@@ -483,12 +483,18 @@ class TestEdgeCases:
 
     def test_duplicate_record_detection(self, isolate_records):
         """
-        Test duplicate record detection (patient_id + created_at + nurse_id).
-        The second call with the same timestamp should return the existing record
+        Test duplicate record detection (patient_id + created_at + nurse_id + soap).
+        The second call with the same timestamp AND same soap should return the existing record
         instead of creating a new one.
         """
         # Patch datetime.now to return a fixed time for both calls
         fixed_time = datetime(2025, 6, 15, 10, 0, 0, tzinfo=timezone.utc)
+        same_soap = {
+            "subjective": "S",
+            "objective": "O",
+            "assessment": "A",
+            "plan": "P",
+        }
 
         with patch("records.datetime") as mock_dt:
             mock_dt.now.return_value = fixed_time
@@ -496,12 +502,7 @@ class TestEdgeCases:
 
             first = records.add_record(
                 patient_id=FAKE_PATIENT_ID,
-                soap={
-                    "subjective": "S",
-                    "objective": "O",
-                    "assessment": "A",
-                    "plan": "P",
-                },
+                soap=same_soap,
                 medications=[],
                 pain_scale=3,
                 warnings=[],
@@ -511,21 +512,17 @@ class TestEdgeCases:
                 shift="日班",
             )
 
+            # Second call: same patient, same nurse, same timestamp, same soap → duplicate
             second = records.add_record(
                 patient_id=FAKE_PATIENT_ID,
-                soap={
-                    "subjective": "S2",
-                    "objective": "O2",
-                    "assessment": "A2",
-                    "plan": "P2",
-                },
+                soap=same_soap,
                 medications=[],
-                pain_scale=5,
+                pain_scale=3,
                 warnings=[],
-                raw_text="test2",
+                raw_text="test",
                 nurse_id="N001",
                 nurse_name="測試",
-                shift="小夜班",
+                shift="日班",
             )
 
         # The second call should return the first record (duplicate detected)
@@ -535,3 +532,43 @@ class TestEdgeCases:
         # Only one record should exist in the store
         all_recs = records.get_patient_records(FAKE_PATIENT_ID)
         assert len(all_recs) == 1
+
+    def test_different_soap_same_timestamp_not_duplicate(self, isolate_records):
+        """
+        Test that two records with same timestamp but different soap content
+        are NOT treated as duplicates.
+        """
+        fixed_time = datetime(2025, 6, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        with patch("records.datetime") as mock_dt:
+            mock_dt.now.return_value = fixed_time
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+
+            first = records.add_record(
+                patient_id=FAKE_PATIENT_ID,
+                soap={"subjective": "S1", "objective": "O1", "assessment": "A1", "plan": "P1"},
+                medications=[],
+                pain_scale=3,
+                warnings=[],
+                raw_text="test1",
+                nurse_id="N001",
+                nurse_name="測試",
+                shift="日班",
+            )
+
+            second = records.add_record(
+                patient_id=FAKE_PATIENT_ID,
+                soap={"subjective": "S2", "objective": "O2", "assessment": "A2", "plan": "P2"},
+                medications=[],
+                pain_scale=5,
+                warnings=[],
+                raw_text="test2",
+                nurse_id="N001",
+                nurse_name="測試",
+                shift="小夜班",
+            )
+
+        # Different soap → should be two separate records
+        assert first["id"] != second["id"]
+        all_recs = records.get_patient_records(FAKE_PATIENT_ID)
+        assert len(all_recs) == 2
