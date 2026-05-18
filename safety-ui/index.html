@@ -190,39 +190,39 @@
                         </p>
                         <div class="compassion-impact">
                             <div class="impact-item">
-                                <span class="impact-icon">⏱️</span>
+                                <span class="impact-icon"></span>
                                 <span class="impact-num">70%</span>
                                 <span class="impact-label">減少紀錄時間</span>
                             </div>
                             <div class="impact-item">
-                                <span class="impact-icon">🛡️</span>
+                                <span class="impact-icon"></span>
                                 <span class="impact-num">2秒</span>
                                 <span class="impact-label">即時攔截異常劑量</span>
                             </div>
                             <div class="impact-item">
-                                <span class="impact-icon">📄</span>
+                                <span class="impact-icon"></span>
                                 <span class="impact-num">0張</span>
                                 <span class="impact-label">紙本病歷用紙</span>
                             </div>
                             <div class="impact-item">
-                                <span class="impact-icon">💚</span>
+                                <span class="impact-icon"></span>
                                 <span class="impact-num">100%</span>
                                 <span class="impact-label">資料不出院</span>
                             </div>
                         </div>
                     </div>
                     <div class="tech-flow">
-                        <div class="flow-step"><div class="flow-icon">🎙️</div><div class="flow-title">語音輸入</div><div class="flow-detail">Web Audio API<br>瀏覽器即時錄音<br>WebM Opus 編碼</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">語音輸入</div><div class="flow-detail">Web Audio API<br>瀏覽器即時錄音<br>WebM Opus 編碼</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon">🔊</div><div class="flow-title">語音辨識</div><div class="flow-detail">OpenAI Whisper base<br>本地 CPU 推論<br>醫療術語 Prompt</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">語音辨識</div><div class="flow-detail">OpenAI Whisper base<br>本地 CPU 推論<br>醫療術語 Prompt</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon">🧹</div><div class="flow-title">文字前處理</div><div class="flow-detail">藥名標準化字典<br>醫學縮寫統一<br>PII 個資遮罩</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">文字前處理</div><div class="flow-detail">藥名標準化字典<br>醫學縮寫統一<br>PII 個資遮罩</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon">🧠</div><div class="flow-title">SOAP 生成</div><div class="flow-detail">Ollama + Llama 3.1 8B<br>Prompt Engineering<br>JSON Schema 約束</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">SOAP 生成</div><div class="flow-detail">Ollama + Llama 3.1 8B<br>Prompt Engineering<br>JSON Schema 約束</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon">🛡️</div><div class="flow-title">防呆引擎</div><div class="flow-detail">劑量閾值比對<br>過敏原交叉檢查<br>生命徵象警戒值</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">防呆引擎</div><div class="flow-detail">劑量閾值比對<br>過敏原交叉檢查<br>生命徵象警戒值</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon">📊</div><div class="flow-title">視覺化輸出</div><div class="flow-detail">SOAP 卡片<br>疼痛趨勢圖<br>交班儀表板</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">視覺化輸出</div><div class="flow-detail">SOAP 卡片<br>疼痛趨勢圖<br>交班儀表板</div></div>
                     </div>
                     <div class="tech-cards">
                         <div class="tech-card"><h3>🔊 語音辨識層</h3><table class="tech-table"><tr><td>模型</td><td>OpenAI Whisper base（本地）</td></tr><tr><td>輸入格式</td><td>WebM → ffmpeg 轉 16kHz WAV</td></tr><tr><td>語言支援</td><td>中文 / 英文 / 台語混合</td></tr><tr><td>優化手段</td><td>醫療術語 initial_prompt 注入 50+ 關鍵詞</td></tr><tr><td>部署方式</td><td>本地 CPU，不需 GPU，不需網路</td></tr></table></div>
