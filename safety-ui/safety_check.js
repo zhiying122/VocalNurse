@@ -47,22 +47,27 @@ function checkAllergy(medication) {
     const medLower = medication.name.toLowerCase();
 
     // 藥物類別對應表：過敏原類別名稱 → 該類別所有藥物（含別名）
+    // 涵蓋 drug_safety_db.json 中所有 36 種藥物
     const DRUG_CLASS_MAP = {
+        // ── NSAIDs（非類固醇消炎藥）──
         'nsaids': [
             'aspirin', 'ibuprofen', 'ketorolac', 'voltaren', 'voren',
             'diclofenac', '服他寧', 'indomethacin', 'naproxen', 'celecoxib',
             'meloxicam', '布洛芬', '阿斯匹靈', '克多炎', 'toradol'
         ],
+        // ── Penicillin 類抗生素 ──
         'penicillin': [
             'penicillin', 'ampicillin', 'amoxicillin', 'piperacillin',
             'oxacillin', 'nafcillin', 'cloxacillin', 'dicloxacillin',
             'amoxicillin-clavulanate', 'augmentin', '安比西林', '阿莫西林', '安莫西林'
         ],
+        // ── Cephalosporins 類抗生素 ──
         'cephalosporins': [
             'ceftriaxone', 'cefazolin', 'cephalexin', 'cefuroxime',
             'cefotaxime', 'ceftazidime', 'cefepime', 'cefdinir',
             'cefprozil', 'cefadroxil', 'rocephin', '頭孢曲松', '頭孢'
         ],
+        // ── Sulfa 類（磺胺類）──
         'sulfa': [
             'sulfamethoxazole', 'trimethoprim-sulfamethoxazole', 'tmp-smx',
             'bactrim', 'septra', 'sulfadiazine', 'sulfasalazine', '磺胺'
@@ -71,34 +76,129 @@ function checkAllergy(medication) {
             'sulfamethoxazole', 'trimethoprim-sulfamethoxazole', 'tmp-smx',
             'bactrim', 'septra', 'sulfadiazine', 'sulfasalazine', '磺胺'
         ],
+        // ── Fluoroquinolones（氟喹諾酮類）──
         'fluoroquinolones': [
             'ciprofloxacin', 'levofloxacin', 'moxifloxacin', 'ofloxacin',
             'cipro', '速博新', '乙乙氟沙星'
         ],
+        // ── Macrolides（大環內酯類）──
         'macrolides': [
             'azithromycin', 'clarithromycin', 'erythromycin',
             '日舒', '克拉黴素', '紅黴素'
         ],
+        // ── Aminoglycosides（氨基糖苷類）──
+        'aminoglycosides': [
+            'gentamicin', 'tobramycin', 'amikacin', 'streptomycin',
+            'neomycin', '健大黴素', '乙乙黴素'
+        ],
+        // ── Glycopeptides（糖肽類）──
+        'glycopeptides': [
+            'vancomycin', 'teicoplanin', '萬古黴素', '穩可信'
+        ],
+        'vancomycin': ['vancomycin', '萬古黴素', '穩可信'],
+        // ── Statins（他汀類降血脂）──
         'statins': [
             'atorvastatin', 'simvastatin', 'rosuvastatin', 'pravastatin',
             'lovastatin', '立普妥', 'lipitor', '降血脂'
         ],
+        // ── ACE Inhibitors（血管收縮素轉化酶抑制劑）──
         'ace inhibitors': [
             'lisinopril', 'enalapril', 'captopril', 'ramipril',
             'benazepril', '捷賜瑞', '降血壓'
         ],
+        // ── Beta Blockers（乙型阻斷劑）──
         'beta blockers': [
             'metoprolol', 'atenolol', 'propranolol', 'carvedilol',
             'bisoprolol', 'betaloc', '舒壓寧'
         ],
+        // ── Calcium Channel Blockers（鈣離子通道阻斷劑）──
+        'calcium channel blockers': [
+            'amlodipine', 'nifedipine', 'diltiazem', 'verapamil',
+            'felodipine', '脈優', 'norvasc'
+        ],
+        'ccb': ['amlodipine', 'nifedipine', 'diltiazem', 'verapamil', '脈優', 'norvasc'],
+        // ── Opioids（鴉片類止痛藥）──
         'opioids': [
             'morphine', 'codeine', 'oxycodone', 'hydrocodone', 'fentanyl',
             'tramadol', 'meperidine', '嗎啡', '特拉乜'
         ],
+        // ── Benzodiazepines（苯二氮平類鎮靜劑）──
         'benzodiazepines': [
             'diazepam', 'lorazepam', 'alprazolam', 'clonazepam', 'midazolam',
             '煩寧', '安定文', 'valium', 'ativan'
-        ]
+        ],
+        // ── Corticosteroids（類固醇）──
+        'corticosteroids': [
+            'prednisone', 'prednisolone', 'dexamethasone', 'hydrocortisone',
+            'methylprednisolone', 'budesonide', '潑尼松', '強的松',
+            '潑尼松龍', '普力朗', '類固醇'
+        ],
+        'steroids': [
+            'prednisone', 'prednisolone', 'dexamethasone', 'hydrocortisone',
+            'methylprednisolone', '潑尼松', '強的松', '潑尼松龍', '類固醇'
+        ],
+        // ── Anticoagulants（抗凝血藥）──
+        'anticoagulants': [
+            'warfarin', 'heparin', 'enoxaparin', 'rivaroxaban', 'apixaban',
+            'dabigatran', '華法林', '可邁丁', 'coumadin', '肝素', '抗凝血',
+            '依諾肝素', '克立生', 'clexane'
+        ],
+        'heparin': ['heparin', 'enoxaparin', '肝素', '抗凝血', '依諾肝素', '克立生', 'clexane'],
+        'warfarin': ['warfarin', '華法林', '可邁丁', 'coumadin'],
+        // ── Antiplatelets（抗血小板藥）──
+        'antiplatelets': [
+            'clopidogrel', 'aspirin', 'ticagrelor', 'prasugrel',
+            '保栓通', 'plavix', '克洛匹格', '抗血小板'
+        ],
+        // ── PPIs（質子幫浦抑制劑）──
+        'proton pump inhibitors': [
+            'omeprazole', 'esomeprazole', 'pantoprazole', 'lansoprazole',
+            'rabeprazole', 'nexium', '耐適恩', '奧美拉唑', 'losec', '胃藥',
+            '泮托拉唑', '保衛康', 'protonix'
+        ],
+        'ppis': [
+            'omeprazole', 'esomeprazole', 'pantoprazole', 'lansoprazole',
+            'nexium', '耐適恩', '奧美拉唑', '泮托拉唑', '胃藥'
+        ],
+        // ── Loop Diuretics（環利尿劑）──
+        'loop diuretics': [
+            'furosemide', 'bumetanide', 'torsemide', 'ethacrynic acid',
+            '服樂泄', 'lasix'
+        ],
+        'diuretics': ['furosemide', 'hydrochlorothiazide', 'spironolactone', '服樂泄', 'lasix'],
+        // ── SSRIs（選擇性血清素再回收抑制劑）──
+        'ssri': [
+            'fluoxetine', 'sertraline', 'paroxetine', 'escitalopram',
+            'citalopram', '百憂解', 'prozac', '樂復得', 'zoloft', '氟西汀', '舍曲林'
+        ],
+        'ssris': [
+            'fluoxetine', 'sertraline', 'paroxetine', 'escitalopram',
+            'citalopram', '百憂解', 'prozac', '樂復得', 'zoloft', '氟西汀', '舍曲林'
+        ],
+        // ── Antiepileptics（抗癲癇藥）──
+        'antiepileptics': [
+            'phenytoin', 'valproate', 'carbamazepine', 'lamotrigine',
+            'levetiracetam', 'dilantin', '苯妥英', '乙內醯脲', '抗癲癇'
+        ],
+        // ── Cardiac Glycosides（強心苷）──
+        'cardiac glycosides': [
+            'digoxin', 'digitoxin', '地高辛', '毛地黃', 'lanoxin'
+        ],
+        'digoxin': ['digoxin', '地高辛', '毛地黃', 'lanoxin'],
+        // ── Insulin（胰島素）──
+        'insulin': [
+            'insulin', 'humulin', 'novolog', 'novorapid', 'lantus',
+            'levemir', 'humalog', '胰島素', 'noverapid'
+        ],
+        // ── Biguanides（雙胍類降血糖）──
+        'biguanides': ['metformin', '美福明', '庫魯化', 'glucophage', '降血糖'],
+        'metformin': ['metformin', '美福明', '庫魯化', 'glucophage'],
+        // ── Mood Stabilizers（情緒穩定劑）──
+        'mood stabilizers': ['lithium', 'valproate', 'carbamazepine', '鋰鹽', 'lithobid'],
+        'lithium': ['lithium', '鋰鹽', 'lithobid'],
+        // ── Acetaminophen（乙醯胺酚，部分人有過敏）──
+        'acetaminophen': ['acetaminophen', '普拿疼', 'panadol', '百服寧', 'paracetamol', 'tylenol'],
+        'paracetamol': ['acetaminophen', '普拿疼', 'panadol', '百服寧', 'paracetamol', 'tylenol'],
     };
 
     // Penicillin 過敏者對 Cephalosporins 有交叉過敏風險（約 1-2%）
@@ -152,6 +252,32 @@ function checkAllergy(medication) {
                         type: 'allergy', severity: 'critical', item: medication.name,
                         detected: `病患對 ${allergen} 過敏`, range: '禁止使用',
                         message: `病患對 ${allergen} 過敏，${medication.name} 屬於相關藥物，禁止使用！`
+                    };
+                }
+            }
+        }
+
+        // 5. 全量 DB 掃描 fallback（罕見過敏：過敏原是商品名、別名或不在已知類別的藥物）
+        //    例如：病患過敏記錄為「Rocephin」（Ceftriaxone 商品名）或「普拿疼」，
+        //    即使前四層沒比對到，也能透過 DB 全量掃描找到對應藥物
+        if (drugSafetyDB && drugSafetyDB.drugs) {
+            for (const dbDrug of drugSafetyDB.drugs) {
+                const dbAllNames = [dbDrug.name.toLowerCase(), ...dbDrug.aliases.map(a => a.toLowerCase())];
+                // 過敏原是否為此 DB 藥物的名稱或別名之一
+                const allergenMatchesDbDrug = dbAllNames.some(n =>
+                    n === aLower || n.includes(aLower) || aLower.includes(n)
+                );
+                if (!allergenMatchesDbDrug) continue;
+
+                // 確認目前開的藥是否就是這個 DB 藥物（或其別名）
+                const prescribedMatchesDbDrug = dbAllNames.some(n =>
+                    n === medLower || n.includes(medLower) || medLower.includes(n)
+                );
+                if (prescribedMatchesDbDrug) {
+                    return {
+                        type: 'allergy', severity: 'critical', item: medication.name,
+                        detected: `病患對 ${allergen} 過敏`, range: '禁止使用',
+                        message: `病患對 ${allergen} 過敏（即 ${dbDrug.name}），${medication.name} 為相同藥物，禁止使用！`
                     };
                 }
             }
