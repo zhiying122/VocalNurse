@@ -296,6 +296,9 @@ async function selectPatient(id) {
     document.getElementById('save-ok').classList.add('hidden');
     document.getElementById('processing').classList.add('hidden');
     document.getElementById('transcript-area').classList.add('hidden');
+    // 切換病患時清空上一位病患的輸入殘留，避免舊文字被誤送去生成 SOAP
+    document.getElementById('transcript-text').value = '';
+    document.getElementById('manual-text').value = '';
 
     // Show loading indicator while fetching records from backend
     const timelineEl = document.getElementById('timeline');

@@ -13,6 +13,11 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 
 def _extract_json(text: str) -> dict:
     """從 LLM 回應中提取 JSON，處理各種格式問題"""
+    print(f"[LLM] 原始回應長度: {len(text)}, 前200字: {repr(text[:200])}")
+
+    if not text or not text.strip():
+        raise ValueError("LLM 回傳空回應")
+
     # 1. 嘗試提取 ```json ... ``` 包裹的內容
     fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", text, re.DOTALL)
     if fence_match:
@@ -38,24 +43,27 @@ def _extract_json(text: str) -> dict:
                 break
 
     json_str = text[start:end]
+    print(f"[LLM] 提取 JSON 長度: {len(json_str)}")
     return json.loads(json_str)
 
 
 def call_ollama(system_prompt: str, user_prompt: str) -> dict:
     """
     呼叫本地 Ollama LLM 生成 SOAP JSON。
-    timeout=120 秒：Ollama 第一次載入模型時需要較長時間，
+    timeout=180 秒：Ollama 第一次載入模型時需要較長時間，
     後續呼叫會快很多（模型已在記憶體中）。
+    num_predict=1024：限制輸出 token 數，加速回應並避免模型過度生成。
     """
     from langchain_ollama import ChatOllama
     from langchain_core.messages import SystemMessage, HumanMessage
 
-    model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    model = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
     llm = ChatOllama(
         model=model,
         base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         temperature=0.1,
-        timeout=120,  # 給 Ollama 足夠的回應時間（秒），避免模型載入時逾時
+        timeout=180,
+        num_predict=2048,
     )
     messages = [
         SystemMessage(content=system_prompt),
