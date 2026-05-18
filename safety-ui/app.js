@@ -1301,6 +1301,7 @@ updateClock();
 // ══════════════════════════════════════
 // 操作紀錄 (Audit Log)
 // ══════════════════════════════════════
+const AUDIT_LOG_STORAGE_KEY = 'voicenursy_audit_logs';
 let auditLogs = [];
 
 function addAuditLog(action, detail) {
@@ -1308,7 +1309,29 @@ function addAuditLog(action, detail) {
     const timestamp = `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
     const nurse = currentUser ? currentUser.name : '未知';
     auditLogs.unshift({ timestamp, nurse, action, detail });
+    // 【修復】持久化寫入 localStorage，只保留最新 1000 筆避免超出 5MB 限制
+    try {
+        const toStore = auditLogs.slice(0, 1000);
+        localStorage.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(toStore));
+    } catch (e) {
+        console.warn('[AuditLog] localStorage 寫入失敗', e);
+    }
     renderAuditLog();
+}
+
+function loadAuditLogs() {
+    try {
+        const stored = localStorage.getItem(AUDIT_LOG_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                auditLogs = parsed;
+            }
+        }
+    } catch (e) {
+        console.warn('[AuditLog] localStorage 讀取失敗', e);
+        auditLogs = [];
+    }
 }
 
 function renderAuditLog() {
@@ -1339,6 +1362,7 @@ const _origDoLogin = doLogin;
 doLogin = async function() {
     await _origDoLogin();
     if (currentUser) {
+        loadAuditLogs();  // 【修復】先從 localStorage 還原歷史紀錄
         addAuditLog('登入系統', `員工：${currentUser.name}`);
     }
 };
