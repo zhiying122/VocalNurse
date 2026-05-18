@@ -45,26 +45,116 @@ function checkAllergy(medication) {
     if (!currentPatient || !currentPatient.allergies?.length) return null;
 
     const medLower = medication.name.toLowerCase();
-    const nsaids = ['voltaren', 'voren', 'diclofenac', 'aspirin', 'ibuprofen', 'ketorolac'];
+
+    // 藥物類別對應表：過敏原類別名稱 → 該類別所有藥物（含別名）
+    const DRUG_CLASS_MAP = {
+        'nsaids': [
+            'aspirin', 'ibuprofen', 'ketorolac', 'voltaren', 'voren',
+            'diclofenac', '服他寧', 'indomethacin', 'naproxen', 'celecoxib',
+            'meloxicam', '布洛芬', '阿斯匹靈', '克多炎', 'toradol'
+        ],
+        'penicillin': [
+            'penicillin', 'ampicillin', 'amoxicillin', 'piperacillin',
+            'oxacillin', 'nafcillin', 'cloxacillin', 'dicloxacillin',
+            'amoxicillin-clavulanate', 'augmentin', '安比西林', '阿莫西林', '安莫西林'
+        ],
+        'cephalosporins': [
+            'ceftriaxone', 'cefazolin', 'cephalexin', 'cefuroxime',
+            'cefotaxime', 'ceftazidime', 'cefepime', 'cefdinir',
+            'cefprozil', 'cefadroxil', 'rocephin', '頭孢曲松', '頭孢'
+        ],
+        'sulfa': [
+            'sulfamethoxazole', 'trimethoprim-sulfamethoxazole', 'tmp-smx',
+            'bactrim', 'septra', 'sulfadiazine', 'sulfasalazine', '磺胺'
+        ],
+        'sulfa drugs': [
+            'sulfamethoxazole', 'trimethoprim-sulfamethoxazole', 'tmp-smx',
+            'bactrim', 'septra', 'sulfadiazine', 'sulfasalazine', '磺胺'
+        ],
+        'fluoroquinolones': [
+            'ciprofloxacin', 'levofloxacin', 'moxifloxacin', 'ofloxacin',
+            'cipro', '速博新', '乙乙氟沙星'
+        ],
+        'macrolides': [
+            'azithromycin', 'clarithromycin', 'erythromycin',
+            '日舒', '克拉黴素', '紅黴素'
+        ],
+        'statins': [
+            'atorvastatin', 'simvastatin', 'rosuvastatin', 'pravastatin',
+            'lovastatin', '立普妥', 'lipitor', '降血脂'
+        ],
+        'ace inhibitors': [
+            'lisinopril', 'enalapril', 'captopril', 'ramipril',
+            'benazepril', '捷賜瑞', '降血壓'
+        ],
+        'beta blockers': [
+            'metoprolol', 'atenolol', 'propranolol', 'carvedilol',
+            'bisoprolol', 'betaloc', '舒壓寧'
+        ],
+        'opioids': [
+            'morphine', 'codeine', 'oxycodone', 'hydrocodone', 'fentanyl',
+            'tramadol', 'meperidine', '嗎啡', '特拉乜'
+        ],
+        'benzodiazepines': [
+            'diazepam', 'lorazepam', 'alprazolam', 'clonazepam', 'midazolam',
+            '煩寧', '安定文', 'valium', 'ativan'
+        ]
+    };
+
+    // Penicillin 過敏者對 Cephalosporins 有交叉過敏風險（約 1-2%）
+    const CROSS_ALLERGY_MAP = {
+        'penicillin': 'cephalosporins',
+        'cephalosporins': 'penicillin'
+    };
 
     for (const allergen of currentPatient.allergies) {
-        const aLower = allergen.toLowerCase();
+        const aLower = allergen.toLowerCase().trim();
+
+        // 1. 直接名稱比對（藥物名稱包含過敏原，或過敏原包含藥物名稱）
         if (medLower.includes(aLower) || aLower.includes(medLower)) {
-            return { type:'allergy', severity:'critical', item:medication.name,
-                detected:`病患對 ${allergen} 過敏`, range:'禁止使用',
-                message:`病患對 ${allergen} 過敏，${medication.name} 屬於相關藥物，禁止使用！` };
+            return {
+                type: 'allergy', severity: 'critical', item: medication.name,
+                detected: `病患對 ${allergen} 過敏`, range: '禁止使用',
+                message: `病患對 ${allergen} 過敏，${medication.name} 屬於相關藥物，禁止使用！`
+            };
         }
-        if (aLower === 'nsaids' && nsaids.includes(medLower)) {
-            return { type:'allergy', severity:'critical', item:medication.name,
-                detected:`病患對 NSAIDs 過敏`, range:'禁止使用',
-                message:`病患對 NSAIDs 過敏，${medication.name} 為 NSAIDs 類藥物，禁止使用！` };
+
+        // 2. 藥物類別比對（過敏原是類別名稱，如 NSAIDs、Cephalosporins）
+        const classMembers = DRUG_CLASS_MAP[aLower];
+        if (classMembers && classMembers.some(m => medLower.includes(m) || m.includes(medLower))) {
+            return {
+                type: 'allergy', severity: 'critical', item: medication.name,
+                detected: `病患對 ${allergen} 過敏`, range: '禁止使用',
+                message: `病患對 ${allergen} 過敏，${medication.name} 為 ${allergen} 類藥物，禁止使用！`
+            };
         }
-        // Penicillin 類交叉過敏
-        const penicillins = ['ampicillin', 'amoxicillin', 'penicillin', 'piperacillin'];
-        if (aLower === 'penicillin' && penicillins.includes(medLower)) {
-            return { type:'allergy', severity:'critical', item:medication.name,
-                detected:`病患對 Penicillin 過敏`, range:'禁止使用',
-                message:`病患對 Penicillin 過敏，${medication.name} 為同類抗生素，有交叉過敏風險！` };
+
+        // 3. 交叉過敏比對（如 Penicillin 過敏 → Cephalosporins 有風險）
+        const crossClass = CROSS_ALLERGY_MAP[aLower];
+        if (crossClass) {
+            const crossMembers = DRUG_CLASS_MAP[crossClass] || [];
+            if (crossMembers.some(m => medLower.includes(m) || m.includes(medLower))) {
+                return {
+                    type: 'allergy', severity: 'critical', item: medication.name,
+                    detected: `病患對 ${allergen} 過敏（交叉過敏風險）`, range: '謹慎使用或禁止',
+                    message: `病患對 ${allergen} 過敏，${medication.name} 為 ${crossClass} 類藥物，有交叉過敏風險，請謹慎評估！`
+                };
+            }
+        }
+
+        // 4. 藥物 DB aliases 比對（用 drugSafetyDB 的別名做更精確的比對）
+        if (drugSafetyDB) {
+            const drugInfo = findDrug(medication.name);
+            if (drugInfo) {
+                const allNames = [drugInfo.name.toLowerCase(), ...drugInfo.aliases.map(a => a.toLowerCase())];
+                if (allNames.some(n => n.includes(aLower) || aLower.includes(n))) {
+                    return {
+                        type: 'allergy', severity: 'critical', item: medication.name,
+                        detected: `病患對 ${allergen} 過敏`, range: '禁止使用',
+                        message: `病患對 ${allergen} 過敏，${medication.name} 屬於相關藥物，禁止使用！`
+                    };
+                }
+            }
         }
     }
     return null;
