@@ -265,6 +265,14 @@ async function loadPatients() {
         patients = await res.json();
     } catch(e) { patients = []; }
     patients.forEach(p => { if (!allRecords[p.id]) allRecords[p.id] = []; });
+
+    // ── 【知情同意整合】批次取得所有病患的同意狀態 ──
+    try {
+        await getConsentStatusBatch();
+    } catch (e) {
+        console.warn('[Consent] loadPatients 批次狀態查詢失敗', e);
+    }
+
     renderPatientList();
     if (patients.length > 0) selectPatient(patients[0].id);
 }
@@ -276,7 +284,10 @@ function renderPatientList() {
     const sortedPatients = [...patients].sort((a, b) => a.bed.localeCompare(b.bed, 'zh-TW', { numeric: true }));
     el.innerHTML = sortedPatients.map(p => {
         const ac = (allRecords[p.id]||[]).reduce((s,r) => s + (r.alerts?.length||0), 0);
-        return `<div class="patient-chip" id="chip-${p.id}" onclick="selectPatient('${p.id}')">${p.bed} ${p.name}${ac>0?`<span class="chip-alert">⚠${ac}</span>`:''}</div>`;
+        // 從快取讀取同意狀態 badge
+        const cachedConsent = consentCache.get(p.id);
+        const consentBadge = cachedConsent ? getConsentBadgeHTML(cachedConsent.status) : '';
+        return `<div class="patient-chip" id="chip-${p.id}" onclick="selectPatient('${p.id}')">${p.bed} ${p.name}${consentBadge}${ac>0?`<span class="chip-alert">⚠${ac}</span>`:''}</div>`;
     }).join('');
 }
 
@@ -370,6 +381,25 @@ async function selectPatient(id) {
 
     renderTimeline(); updatePainChart();
     updateMedicationTimeline(allRecords[id] || [], []);
+
+    // ── 【知情同意整合】查詢同意狀態，控制 UI ──
+    try {
+        const consentStatus = await fetchConsentStatus(id);
+        updatePatientCardBadge(id, consentStatus.status);
+
+        if (consentStatus.status !== 'consented' || consentStatus.version_match === false) {
+            // 未同意或版本不符：停用錄音 UI，顯示同意書對話框
+            disableRecordingUI();
+            showConsentDialog(id, consentStatus);
+            _removeWithdrawButton();
+        } else {
+            // 已同意且版本相符：啟用錄音 UI，顯示撤回按鈕
+            enableRecordingUI();
+            showWithdrawButton(id);
+        }
+    } catch (e) {
+        console.warn('[Consent] selectPatient 同意狀態查詢失敗', e);
+    }
 }
 
 function showAddPatient() { document.getElementById('add-patient-form').classList.remove('hidden'); }
@@ -849,6 +879,15 @@ function releaseFocusTrap() {
 async function confirmSave() {
     if (!currentOutput || !currentPatient) return;
 
+    // ── 【知情同意整合】前端快取防護：避免在未同意狀態下送出請求 ──
+    const cachedConsent = consentCache.get(currentPatient.id);
+    if (cachedConsent && cachedConsent.status !== 'consented') {
+        showToast('無法存檔：病患尚未完成知情同意');
+        disableRecordingUI();
+        showConsentDialog(currentPatient.id, cachedConsent);
+        return;
+    }
+
     // Disable save button to prevent double-submit
     const saveBtn = document.querySelector('.confirm-area .btn-success');
     if (saveBtn) saveBtn.disabled = true;
@@ -885,6 +924,19 @@ async function confirmSave() {
         if (res.status === 401) {
             showToast('登入已過期，請重新登入');
             doLogout();
+            return;
+        }
+
+        if (res.status === 403) {
+            // 後端同意驗證失敗（未同意或版本不符）
+            const errData = await res.json().catch(() => ({}));
+            showToast('存檔失敗：' + (errData.detail || '病患知情同意驗證失敗'));
+            // 重新查詢同意狀態並更新 UI
+            const newStatus = await fetchConsentStatus(currentPatient.id);
+            updatePatientCardBadge(currentPatient.id, newStatus.status);
+            disableRecordingUI();
+            showConsentDialog(currentPatient.id, newStatus);
+            if (saveBtn) saveBtn.disabled = false;
             return;
         }
 
@@ -1256,7 +1308,7 @@ async function renderHandover() {
     });
     
     if (careHtml) {
-        const careSection = `<div style="margin-bottom:20px"><h3 style="font-size:.95rem;color:var(--warning);margin-bottom:12px">💝 關懷提醒</h3>${careHtml}</div>`;
+        const careSection = `<div style="margin-bottom:20px"><h3 style="font-size:.95rem;color:var(--warning);margin-bottom:12px">關懷提醒</h3>${careHtml}</div>`;
         const handoverEl = document.getElementById('handover-patients');
         handoverEl.innerHTML = careSection + handoverEl.innerHTML;
     }

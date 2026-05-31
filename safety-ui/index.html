@@ -178,10 +178,10 @@
                             <div style="display:flex;gap:8px;flex-wrap:wrap">
                                 <!-- SBAR 生成按鈕 -->
                                 <button class="btn btn-small btn-primary" onclick="generateSBAR()" id="sbar-btn">
-                                    🗣️ 生成交班口語稿
+                                    生成交班口語稿
                                 </button>
                                 <!-- 【Item 11】列印交班報告按鈕 -->
-                                <button class="btn btn-small btn-secondary" onclick="printHandover()" id="print-handover-btn">🖨️ 列印交班報告</button>
+                                <button class="btn btn-small btn-secondary" onclick="printHandover()" id="print-handover-btn">列印交班報告</button>
                             </div>
                         </div>
                         <div class="summary-stats">
@@ -196,9 +196,9 @@
                         <div class="sbar-header">
                             <h3>🗣️ SBAR 交班口語稿</h3>
                             <div class="sbar-actions">
-                                <button class="btn btn-small btn-outline" onclick="copySBAR()" id="sbar-copy-btn">📋 複製</button>
-                                <button class="btn btn-small btn-secondary" onclick="printSBAR()">🖨️ 列印</button>
-                                <button class="btn btn-small btn-outline" onclick="closeSBAR()" style="color:var(--text-muted)">✕ 關閉</button>
+                                <button class="btn btn-small btn-primary" onclick="copySBAR()" id="sbar-copy-btn">📋 複製</button>
+                                <button class="btn btn-small btn-primary" onclick="printSBAR()">🖨️ 列印</button>
+                                <button class="btn btn-small btn-secondary" onclick="closeSBAR()">✕ 關閉</button>
                             </div>
                         </div>
                         <div id="sbar-loading" class="sbar-loading hidden">
@@ -211,10 +211,10 @@
                     <!-- 護理師工作負荷儀表板 -->
                     <div class="workload-section">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                            <h3 style="margin:0;font-size:.95rem">👩‍⚕️ 護理師工作負荷</h3>
+                            <h3 style="margin:0;font-size:.95rem">護理師工作負荷</h3>
                             <div style="display:flex;align-items:center;gap:8px">
                                 <input type="date" id="workload-date" style="font-size:.8rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:inherit;background:var(--bg);" aria-label="選擇日期">
-                                <button class="btn btn-small btn-outline" onclick="loadWorkload()">重新整理</button>
+                                <button class="btn btn-small btn-primary" onclick="loadWorkload()">重新整理</button>
                             </div>
                         </div>
                         <div class="workload-legend">
@@ -234,8 +234,8 @@
                     <!-- 護理師壓力概覽（護理長視角） -->
                     <div class="stress-overview-section">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                            <h3 style="margin:0;font-size:.95rem">😰 護理師壓力概覽 <span style="font-size:.75rem;font-weight:400;color:var(--text-muted)">（過去 7 天行為分析）</span></h3>
-                            <button class="btn btn-small btn-outline" onclick="loadTeamStress()">重新整理</button>
+                            <h3 style="margin:0;font-size:.95rem">護理師壓力概覽 <span style="font-size:.75rem;font-weight:400;color:var(--text-muted)">（過去 7 天行為分析）</span></h3>
+                            <button class="btn btn-small btn-primary" onclick="loadTeamStress()">重新整理</button>
                         </div>
                         <div id="stress-overview-cards" class="stress-overview-cards">
                             <p style="color:var(--text-muted);font-size:.85rem">載入中...</p>
@@ -300,22 +300,27 @@
                         <div class="flow-arrow">→</div>
                         <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">文字前處理</div><div class="flow-detail">藥名標準化字典<br>醫學縮寫統一<br>PII 個資遮罩</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">SOAP 生成</div><div class="flow-detail">Ollama + Llama 3.1 8B<br>Prompt Engineering<br>JSON Schema 約束</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">SOAP 生成</div><div class="flow-detail">Ollama + Gemma3:4b<br>Prompt Engineering<br>JSON Schema 約束</div></div>
                         <div class="flow-arrow">→</div>
                         <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">防呆引擎</div><div class="flow-detail">劑量閾值比對<br>過敏原交叉檢查<br>生命徵象警戒值</div></div>
                         <div class="flow-arrow">→</div>
-                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">視覺化輸出</div><div class="flow-detail">SOAP 卡片<br>疼痛趨勢圖<br>交班儀表板</div></div>
+                        <div class="flow-step"><div class="flow-icon"></div><div class="flow-title">智慧輸出</div><div class="flow-detail">SOAP 卡片<br>SBAR 交班口語稿<br>工作負荷儀表板<br>IRB 知情同意</div></div>
                     </div>
                     <div class="tech-cards">
-                        <div class="tech-card"><h3>🔊 語音辨識層</h3><table class="tech-table"><tr><td>模型</td><td>OpenAI Whisper base（本地）</td></tr><tr><td>輸入格式</td><td>WebM → ffmpeg 轉 16kHz WAV</td></tr><tr><td>語言支援</td><td>中文 / 英文 / 台語混合</td></tr><tr><td>優化手段</td><td>醫療術語 initial_prompt 注入 50+ 關鍵詞</td></tr><tr><td>部署方式</td><td>本地 CPU，不需 GPU，不需網路</td></tr></table></div>
-                        <div class="tech-card"><h3>🧠 AI 推論層</h3><table class="tech-table"><tr><td>主模型</td><td>Llama 3.1 8B（Ollama 本地）</td></tr><tr><td>備援模型</td><td>Gemini 2.0 Flash / GPT-4o</td></tr><tr><td>Prompt 策略</td><td>角色扮演 + SOAP 分類規則 + JSON Schema 約束</td></tr><tr><td>前處理</td><td>藥名標準化（30+ 映射）+ 縮寫統一（18 種）</td></tr><tr><td>隱私保護</td><td>PII 遮罩（身分證/電話/姓名/Email）</td></tr></table></div>
-                        <div class="tech-card"><h3>🛡️ 防呆引擎</h3><table class="tech-table"><tr><td>劑量檢查</td><td>8 種常用藥品最大單次/每日劑量閾值</td></tr><tr><td>過敏原</td><td>直接匹配 + NSAIDs 類別 + Penicillin 交叉過敏</td></tr><tr><td>生命徵象</td><td>BP / HR / SpO2 / BT / RR 六項警戒值</td></tr><tr><td>觸發方式</td><td>全螢幕紅色閃爍 + 提示音 + 強制確認</td></tr><tr><td>稽核記錄</td><td>所有警示觸發與處置選擇均記錄</td></tr></table></div>
-                        <div class="tech-card"><h3>🏗️ 系統架構</h3><table class="tech-table"><tr><td>後端</td><td>Python FastAPI（非同步高效能）</td></tr><tr><td>前端</td><td>原生 HTML/CSS/JS（零框架依賴）</td></tr><tr><td>圖表</td><td>Chart.js（疼痛趨勢折線圖）</td></tr><tr><td>離線支援</td><td>IndexedDB 本地暫存 + 網路恢復自動同步</td></tr><tr><td>認證</td><td>PBKDF2-SHA256 密碼雜湊 + JWT Token</td></tr></table></div>
+                        <div class="tech-card"><h3>🔊 語音辨識層</h3><table class="tech-table"><tr><td>模型</td><td>OpenAI Whisper base（本地）</td></tr><tr><td>輸入格式</td><td>WebM → ffmpeg 轉 16kHz WAV</td></tr><tr><td>語言支援</td><td>中文 / 英文 / 台語混合</td></tr><tr><td>優化手段</td><td>醫療術語 initial_prompt 注入 30+ 關鍵詞</td></tr><tr><td>部署方式</td><td>本地 CPU，不需 GPU，不需網路</td></tr></table></div>
+                        <div class="tech-card"><h3>🧠 AI 推論層</h3><table class="tech-table"><tr><td>主模型</td><td>Gemma3:4b（Ollama 本地）</td></tr><tr><td>備援模型</td><td>Gemini 2.0 Flash / GPT-4o</td></tr><tr><td>Prompt 策略</td><td>角色扮演 + SOAP 分類規則 + JSON Schema 約束</td></tr><tr><td>前處理</td><td>藥名標準化（18 種映射）+ 縮寫統一（18 種）</td></tr><tr><td>隱私保護</td><td>PII 遮罩（身分證/電話/姓名/Email）</td></tr></table></div>
+                        <div class="tech-card"><h3>🛡️ 防呆引擎</h3><table class="tech-table"><tr><td>劑量檢查</td><td>36 種藥物單次/每日劑量閾值</td></tr><tr><td>過敏原</td><td>直接匹配 + NSAIDs 類別 + Penicillin 交叉過敏</td></tr><tr><td>藥物交互作用</td><td>25 組危險配對自動比對</td></tr><tr><td>生命徵象</td><td>BP / HR / SpO2 / BT / RR 共 6 項警戒值</td></tr><tr><td>稽核記錄</td><td>Audit Log 持久化，跨登入階段保存</td></tr></table></div>
+                        <div class="tech-card"><h3>🏗️ 系統架構</h3><table class="tech-table"><tr><td>後端</td><td>Python FastAPI（非同步高效能）</td></tr><tr><td>前端</td><td>原生 HTML/CSS/JS（零框架依賴）</td></tr><tr><td>圖表</td><td>Chart.js（疼痛趨勢 + 工作負荷長條圖）</td></tr><tr><td>離線支援</td><td>IndexedDB 本地暫存 + 網路恢復自動同步</td></tr><tr><td>認證</td><td>PBKDF2-SHA256 密碼雜湊 + JWT Token</td></tr></table></div>
+                        <div class="tech-card"><h3>📊 工作負荷儀表板</h3><table class="tech-table"><tr><td>統計維度</td><td>SOAP 紀錄數、安全警示數、負責病患數</td></tr><tr><td>負荷等級</td><td>輕鬆 / 中等 / 高負荷 / 過載（四級）</td></tr><tr><td>視覺化</td><td>Chart.js 長條圖，顏色對應負荷等級</td></tr><tr><td>API</td><td>GET /workload?date=YYYY-MM-DD</td></tr></table></div>
+                        <div class="tech-card"><h3>💊 智慧給藥提醒</h3><table class="tech-table"><tr><td>解析來源</td><td>SOAP P（計畫）欄位文字</td></tr><tr><td>支援格式</td><td>絕對時間（14:00）/ 頻率（Q6H/BID/TID）/ PRN</td></tr><tr><td>通知方式</td><td>瀏覽器 Notification API + 畫面 Toast</td></tr><tr><td>未完成清單</td><td>交班前自動列出逾時未給藥項目</td></tr></table></div>
+                        <div class="tech-card"><h3>🗣️ SBAR 交班口語稿</h3><table class="tech-table"><tr><td>格式標準</td><td>SBAR（Situation / Background / Assessment / Recommendation）</td></tr><tr><td>生成方式</td><td>LLM 自動彙整本班所有病患紀錄</td></tr><tr><td>輸出功能</td><td>複製純文字 / 列印 / 直接朗讀</td></tr><tr><td>API</td><td>POST /sbar/generate</td></tr></table></div>
+                        <div class="tech-card"><h3>😰 護理師壓力偵測</h3><table class="tech-table"><tr><td>分析維度</td><td>深夜補寫、高密度工作日、連續工作天數</td></tr><tr><td>品質指標</td><td>SOAP 平均字數趨勢、警示密度</td></tr><tr><td>護理師視角</td><td>登入後自動顯示個人關懷提示</td></tr><tr><td>護理長視角</td><td>交班儀表板顯示全體壓力概覽</td></tr></table></div>
+                        <div class="tech-card"><h3>📋 IRB 知情同意</h3><table class="tech-table"><tr><td>合規標準</td><td>IRB 審查委員會規範，符合人體研究法</td></tr><tr><td>同意流程</td><td>選擇病患時自動顯示同意書，取得明確授權</td></tr><tr><td>狀態管理</td><td>同意 / 拒絕 / 撤回，Append-Only 歷史紀錄</td></tr><tr><td>版本控制</td><td>同意書版本比對，版本更新時自動重新取得同意</td></tr><tr><td>稽核日誌</td><td>所有同意操作完整記錄，供 IRB 稽核查閱</td></tr><tr><td>API</td><td>GET/POST /consent/patient/{id}，GET /consent/audit-log</td></tr></table></div>
                     </div>
                     <div class="tech-diff"><h3>與直接使用 ChatGPT 的差異</h3>
                         <div class="diff-grid">
-                            <div class="diff-item bad"><h4>❌ 直接用 ChatGPT</h4><ul><li>病歷資料上傳雲端，違反個資法</li><li>無法辨識台語和醫療口語</li><li>沒有劑量防呆機制</li><li>沒有過敏原交叉檢查</li><li>輸出格式不穩定</li><li>需要網路，醫院 WiFi 不穩就掛</li></ul></div>
-                            <div class="diff-item good"><h4>✅ VoiceNursy</h4><ul><li>全程本地運行，資料不出院</li><li>醫療術語 Prompt 優化 + 校正字典</li><li>即時劑量閾值比對，2 秒內攔截</li><li>Penicillin/NSAIDs 交叉過敏偵測</li><li>Pydantic Schema 強制 JSON 結構</li><li>IndexedDB 離線暫存，斷網照用</li></ul></div>
+                            <div class="diff-item bad"><h4>❌ 直接用 ChatGPT</h4><ul><li>病歷資料上傳雲端，違反個資法</li><li>無法辨識台語和醫療口語</li><li>沒有劑量防呆機制</li><li>沒有過敏原交叉檢查</li><li>無給藥提醒和交班口語稿</li><li>無 IRB 知情同意機制</li><li>需要網路，醫院 WiFi 不穩就掛</li></ul></div>
+                            <div class="diff-item good"><h4>✅ VoiceNursy</h4><ul><li>全程本地運行，資料不出院</li><li>醫療術語 Prompt 優化 + 校正字典</li><li>即時劑量閾值比對，2 秒內攔截</li><li>Penicillin/NSAIDs 交叉過敏偵測</li><li>SBAR 交班口語稿一鍵生成</li><li>IRB 知情同意 + 稽核日誌，符合人體研究法</li><li>IndexedDB 離線暫存，斷網照用</li></ul></div>
                         </div>
                     </div>
                     <!-- 慈悲科技：環保 5R 連結 -->
@@ -375,6 +380,7 @@
     <script src="safety_check.js"></script>
     <script src="offline_sync.js"></script>
     <script src="charts.js"></script>
+    <script src="consent.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

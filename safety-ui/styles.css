@@ -2164,17 +2164,22 @@ body {
   align-items: center;
   gap: 12px;
   font-size: .78rem;
-  color: var(--text-muted);
+  color: #4a5568;
   margin-bottom: 14px;
   flex-wrap: wrap;
+  background: rgba(0,0,0,.04);
+  padding: 6px 10px;
+  border-radius: 6px;
 }
 
 .wl-dot {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   margin-right: 3px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(0,0,0,.15);
 }
 .wl-dot.wl-low      { background: #388e3c; }
 .wl-dot.wl-medium   { background: #f57c00; }

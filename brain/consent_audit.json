@@ -1,0 +1,20 @@
+[
+  {
+    "id": "A14CD2E",
+    "event_type": "consent_shown",
+    "patient_id": "P001",
+    "nurse_id": "N001",
+    "consent_version": "v1.0",
+    "timestamp": "2026-05-31T13:23:31.512483Z",
+    "notes": "測試備註"
+  },
+  {
+    "id": "A0425D2",
+    "event_type": "validation_failed",
+    "patient_id": "",
+    "nurse_id": "",
+    "consent_version": "",
+    "timestamp": "2026-05-31T13:23:40.540579Z",
+    "notes": ""
+  }
+]

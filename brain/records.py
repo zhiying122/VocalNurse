@@ -53,6 +53,7 @@ def add_record(
     nurse_name: str,
     shift: str,
     alerts: list[dict] | None = None,
+    consent_id: str | None = None,
 ) -> dict:
     """
     新增一筆 SOAP 護理紀錄。
@@ -68,6 +69,7 @@ def add_record(
         nurse_name  — 建立此紀錄的護理師姓名
         shift       — 班別標籤
         alerts      — 【新增】安全警示列表（每筆包含 type/severity/item/detected/range/message）
+        consent_id  — 【新增】對應的知情同意紀錄 ID（可選）
 
     回傳值：
         dict — 完整的紀錄（含系統產生的 id 和 created_at）
@@ -110,6 +112,7 @@ def add_record(
             "shift": shift,
             "created_at": created_at,
             "alerts": alerts if alerts is not None else [],
+            "consent_id": consent_id,  # 【新增】知情同意 ID
         }
 
         # ── 步驟 5：寫入檔案 ──

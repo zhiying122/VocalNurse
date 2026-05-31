@@ -159,6 +159,7 @@ class RecordResponse(BaseModel):
     - nurse_id   — 建立者員工編號（從 JWT 提取）
     - nurse_name — 建立者姓名（從 JWT 提取）
     - created_at — 建立時間（ISO 8601 UTC 格式）
+    - consent_id — 對應的知情同意紀錄 ID（可選）
     """
     id: str = Field(..., description="紀錄 ID（R + 6 位 hex，例如 'R3A5B2C'）")
     patient_id: str = Field(..., description="病患 ID")
@@ -172,6 +173,7 @@ class RecordResponse(BaseModel):
     nurse_name: str = Field(..., description="建立者姓名（從 JWT 自動提取）")
     created_at: str = Field(..., description="建立時間（ISO 8601 UTC 格式）")
     alerts: list[AlertEntry] = Field(default_factory=list, description="安全警示列表")
+    consent_id: Optional[str] = Field(None, description="對應的知情同意紀錄 ID（可選）")
 
 
 class RecordUpdate(BaseModel):
@@ -184,3 +186,95 @@ class RecordUpdate(BaseModel):
     medications: Optional[list[MedicationEntity]] = None
     pain_scale: Optional[int] = Field(None, ge=0, le=10)
     warnings: Optional[list[str]] = None
+
+
+# ══════════════════════════════════════════════════════════
+# IRB 知情同意（Informed Consent）相關模型
+# ══════════════════════════════════════════════════════════
+
+from enum import Enum
+
+
+class ConsentStatus(str, Enum):
+    """
+    病患知情同意狀態。
+    - pending:   尚未進行同意程序（預設狀態）
+    - consented: 病患已同意
+    - declined:  病患已拒絕
+    - withdrawn: 病患已撤回同意
+    """
+    pending = "pending"
+    consented = "consented"
+    declined = "declined"
+    withdrawn = "withdrawn"
+
+
+class ConsentSection(BaseModel):
+    """
+    知情同意書的單一段落。
+    """
+    id: str = Field(..., description="段落唯一識別碼，例如 'purpose'")
+    heading: str = Field(..., description="段落標題，例如 '研究目的'")
+    content: str = Field(..., description="段落內容文字")
+
+
+class ConsentConfig(BaseModel):
+    """
+    知情同意書設定，從 consent_config.json 載入。
+    包含版本號、標題、生效日期及各段落內容。
+    """
+    version: str = Field(..., description="同意書版本號，格式 v{major}.{minor}，例如 'v1.0'")
+    effective_date: str = Field(..., description="生效日期，格式 YYYY-MM-DD")
+    title: str = Field(..., description="同意書標題")
+    sections: list[ConsentSection] = Field(..., description="同意書各段落列表")
+
+
+class ConsentRecord(BaseModel):
+    """
+    單筆知情同意紀錄，持久化儲存至 consents.json。
+    採 Append-Only 設計，不允許修改或刪除歷史紀錄。
+    """
+    id: str = Field(..., description="紀錄唯一識別碼（C + 6 位大寫 hex，例如 'C3A5B2'）")
+    patient_id: str = Field(..., description="病患 ID")
+    nurse_id: str = Field(..., description="操作護理師員工編號")
+    consent_version: str = Field(..., description="同意書版本號，例如 'v1.0'")
+    status: ConsentStatus = Field(..., description="同意狀態")
+    created_at: str = Field(..., description="建立時間（ISO 8601 UTC 格式）")
+    notes: str = Field("", description="備註（可選）")
+
+
+class ConsentStatusResponse(BaseModel):
+    """
+    查詢病患同意狀態的回應格式（GET /consent/patient/{patient_id}）。
+    包含版本比對結果，供前端判斷是否需要重新取得同意。
+    """
+    patient_id: str = Field(..., description="病患 ID")
+    status: ConsentStatus = Field(..., description="目前同意狀態")
+    consent_version: str = Field(..., description="病患同意時的版本號（或目前系統版本號）")
+    version_match: bool = Field(..., description="病患同意版本是否與目前系統版本相符")
+    last_updated: Optional[str] = Field(None, description="最後更新時間（ISO 8601 UTC）")
+    nurse_id: Optional[str] = Field(None, description="最後操作護理師員工編號")
+
+
+class ConsentSummary(BaseModel):
+    """
+    病患同意狀態摘要，用於批次查詢（GET /consent/patients/status）。
+    """
+    patient_id: str = Field(..., description="病患 ID")
+    status: ConsentStatus = Field(..., description="目前同意狀態")
+    consent_version: Optional[str] = Field(None, description="同意書版本號")
+    last_updated: Optional[str] = Field(None, description="最後更新時間（ISO 8601 UTC）")
+
+
+class ConsentAuditEntry(BaseModel):
+    """
+    知情同意稽核日誌條目，持久化儲存至 consent_audit.json。
+    記錄所有同意相關操作，供 IRB 稽核使用。
+    """
+    id: str = Field(..., description="稽核條目唯一識別碼")
+    event_type: str = Field(..., description="事件類型：consent_shown / consented / declined / withdrawn / validation_failed")
+    patient_id: str = Field(..., description="病患 ID")
+    nurse_id: str = Field(..., description="操作護理師員工編號")
+    consent_version: str = Field(..., description="同意書版本號")
+    timestamp: str = Field(..., description="事件時間（ISO 8601 UTC 格式）")
+    notes: str = Field("", description="備註（可選）")

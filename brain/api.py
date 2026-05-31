@@ -25,6 +25,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 from typing import Optional
 from schemas import STTInput, BrainOutput, RecordCreate, RecordResponse, RecordUpdate
+from schemas import (
+    ConsentStatus,
+    ConsentRecord,
+    ConsentStatusResponse,
+    ConsentSummary,
+    ConsentAuditEntry,
+)
 from brain import process
 from auth import register, login, verify_token
 from stt_service import transcribe_audio
@@ -32,6 +39,8 @@ from correction_dict import preprocess
 from patients import list_patients, add_patient, delete_patient, update_patient
 from dotenv import load_dotenv
 import records  # 護理紀錄模組
+import consent  # 知情同意服務模組
+from consent import ConsentRequired, ConsentVersionMismatch
 
 # 載入 .env 環境變數
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -442,7 +451,30 @@ def api_add_record(req: RecordCreate, user: dict = Depends(get_current_user)):
 
     前端 confirmSave() 會呼叫此端點。
     護理師的 employee_id 和 name 會自動從 JWT token 中提取。
+    建立前會驗證病患的知情同意狀態。
     """
+    # ── 知情同意驗證 ──
+    try:
+        consent_id = consent.verify_consent_for_record(req.patient_id)
+    except ConsentRequired as e:
+        raise HTTPException(
+            status_code=403,
+            detail=f"無法建立護理紀錄：病患尚未完成知情同意（目前狀態：{e.status}）",
+        )
+    except ConsentVersionMismatch as e:
+        # 記錄版本不符的稽核事件
+        consent.log_audit_event(
+            event_type="validation_failed",
+            patient_id=req.patient_id,
+            nurse_id=user["employee_id"],
+            consent_version=e.patient_version,
+            notes=f"版本不符：病患版本 {e.patient_version}，目前版本 {e.current_version}",
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=f"無法建立護理紀錄：同意書版本不符（病患版本 {e.patient_version}，目前版本 {e.current_version}），請重新取得同意",
+        )
+
     try:
         saved = records.add_record(
             patient_id=req.patient_id,
@@ -455,6 +487,7 @@ def api_add_record(req: RecordCreate, user: dict = Depends(get_current_user)):
             nurse_name=user["name"],
             shift=req.shift,
             alerts=req.alerts,  # 【新增】安全警示持久化
+            consent_id=consent_id,  # 【新增】知情同意 ID
         )
         return saved
     except ValueError:
@@ -1013,6 +1046,104 @@ def api_workload(
         "nurses": result_nurses,
     }
 
+
+# ══════════════════════════════════════════════════════════
+# 知情同意 API（/consent/*）
+# ══════════════════════════════════════════════════════════
+
+class ConsentActionReq(BaseModel):
+    """知情同意操作請求格式"""
+    action: str   # "consent" | "declined" | "withdrawn"
+    notes: str = ""
+
+    @field_validator("action")
+    @classmethod
+    def action_must_be_valid(cls, v):
+        valid = {"consent", "declined", "withdrawn"}
+        if v not in valid:
+            raise ValueError(f"action 必須是 {valid} 之一")
+        return v
+
+
+@app.get("/consent/patient/{patient_id}", response_model=ConsentStatusResponse)
+def api_get_consent_status(
+    patient_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    查詢指定病患的最新知情同意狀態。
+    無紀錄時回傳 pending 狀態。
+    需要 JWT 驗證。
+    """
+    # 確認病患存在
+    all_patients = list_patients()
+    if not any(p["id"] == patient_id for p in all_patients):
+        raise HTTPException(404, "病患不存在")
+
+    return consent.get_consent_status(patient_id)
+
+
+@app.post("/consent/patient/{patient_id}", response_model=ConsentRecord)
+def api_create_consent_record(
+    patient_id: str,
+    req: ConsentActionReq,
+    user: dict = Depends(get_current_user),
+):
+    """
+    建立一筆知情同意紀錄（同意 / 拒絕 / 撤回）。
+    需要 JWT 驗證。
+    """
+    # 確認病患存在
+    all_patients = list_patients()
+    if not any(p["id"] == patient_id for p in all_patients):
+        raise HTTPException(404, "病患不存在")
+
+    # action → ConsentStatus 映射
+    action_map = {
+        "consent": ConsentStatus.consented,
+        "declined": ConsentStatus.declined,
+        "withdrawn": ConsentStatus.withdrawn,
+    }
+    status = action_map[req.action]
+
+    return consent.create_consent_record(
+        patient_id=patient_id,
+        nurse_id=user["employee_id"],
+        status=status,
+        notes=req.notes,
+    )
+
+
+@app.get("/consent/patients/status", response_model=list[ConsentSummary])
+def api_get_all_consent_status(user: dict = Depends(get_current_user)):
+    """
+    批次查詢所有病患的知情同意狀態摘要。
+    需要 JWT 驗證。
+    """
+    return consent.get_all_patients_consent_status()
+
+
+@app.get("/consent/audit-log", response_model=list[ConsentAuditEntry])
+def api_get_consent_audit_log(
+    patient_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    """
+    查詢知情同意稽核日誌，支援依病患 ID 或日期範圍篩選。
+    需要 JWT 驗證。
+    """
+    return consent.get_audit_log(
+        patient_id=patient_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+# ══════════════════════════════════════════════════════════
+# 健康檢查
+# ══════════════════════════════════════════════════════════
 
 @app.get("/health")
 def health():

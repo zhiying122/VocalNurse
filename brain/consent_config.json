@@ -1,0 +1,32 @@
+{
+  "version": "v1.0",
+  "effective_date": "2025-01-01",
+  "title": "VoiceNursy 護理語音紀錄系統知情同意書",
+  "sections": [
+    {
+      "id": "purpose",
+      "heading": "研究目的",
+      "content": "本系統旨在透過語音辨識技術協助護理師建立 SOAP 護理紀錄，提升護理記錄效率與品質。"
+    },
+    {
+      "id": "data_types",
+      "heading": "收集的資料類型",
+      "content": "本系統將收集您的語音錄音及由語音轉換而成的護理紀錄文字，包含主訴、生命徵象、護理評估與計畫。"
+    },
+    {
+      "id": "data_storage",
+      "heading": "資料保存方式",
+      "content": "所有資料僅儲存於院內伺服器，不會傳輸至院外。資料保存期限依醫院規定辦理。"
+    },
+    {
+      "id": "withdrawal_rights",
+      "heading": "撤回同意權利",
+      "content": "您有權隨時撤回同意，撤回後系統將停止收集新資料，但已建立的護理紀錄依法規仍須保存。"
+    },
+    {
+      "id": "contact",
+      "heading": "聯絡窗口",
+      "content": "如有疑問，請聯絡本院 IRB 辦公室，電話：(02) XXXX-XXXX，電子郵件：irb@hospital.org.tw"
+    }
+  ]
+}
