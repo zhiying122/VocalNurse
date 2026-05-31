@@ -62,6 +62,13 @@
                 </div>
             </header>
 
+            <!-- 護理師關懷提示 banner（壓力偵測後顯示） -->
+            <div id="care-banner" class="care-banner hidden" role="status" aria-live="polite">
+                <span id="care-banner-icon">💙</span>
+                <span id="care-banner-msg"></span>
+                <button class="care-banner-close" onclick="dismissCareBanner()" aria-label="關閉關懷提示">✕</button>
+            </div>
+
             <!-- 巡房模式 -->
             <div id="tab-patrol" class="tab-content">
                 <div class="patient-bar">
@@ -148,6 +155,15 @@
                         <div class="mini-chart"><h3>疼痛趨勢</h3><canvas id="pain-chart" aria-label="疼痛趨勢圖"></canvas></div>
                         <div class="mini-chart"><h3>給藥時間軸</h3><canvas id="med-timeline-chart" aria-label="給藥時間軸"></canvas></div>
                         <div class="timeline-panel"><h3>今日紀錄</h3><div id="timeline"><p class="timeline-placeholder">尚無紀錄</p></div></div>
+                        <!-- 給藥提醒面板 -->
+                        <div class="med-reminder-panel-wrap">
+                            <h3>💊 給藥提醒
+                                <span id="med-reminder-badge" class="med-reminder-badge" style="display:none"></span>
+                            </h3>
+                            <div id="med-reminder-panel" class="med-reminder-panel">
+                                <p class="med-reminder-empty">本班無待執行給藥項目 ✓</p>
+                            </div>
+                        </div>
                         <div class="audit-panel"><h3>操作紀錄 <span id="audit-count" style="font-weight:400;color:var(--text-muted);font-size:.75rem"></span></h3><div id="audit-log"><div class="audit-empty">尚無操作紀錄</div></div></div>
                     </section>
                 </main>
@@ -159,8 +175,14 @@
                     <div class="handover-summary">
                         <div style="display:flex;justify-content:space-between;align-items:center">
                             <h2>交班摘要</h2>
-                            <!-- 【Item 11】列印交班報告按鈕 -->
-                            <button class="btn btn-small btn-secondary" onclick="printHandover()" id="print-handover-btn">🖨️ 列印交班報告</button>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                                <!-- SBAR 生成按鈕 -->
+                                <button class="btn btn-small btn-primary" onclick="generateSBAR()" id="sbar-btn">
+                                    🗣️ 生成交班口語稿
+                                </button>
+                                <!-- 【Item 11】列印交班報告按鈕 -->
+                                <button class="btn btn-small btn-secondary" onclick="printHandover()" id="print-handover-btn">🖨️ 列印交班報告</button>
+                            </div>
                         </div>
                         <div class="summary-stats">
                             <div class="stat-card"><div class="stat-num" id="stat-patients">0</div><div class="stat-label">負責病患</div></div>
@@ -168,7 +190,67 @@
                             <div class="stat-card"><div class="stat-num" id="stat-records">0</div><div class="stat-label">SOAP 紀錄</div></div>
                         </div>
                     </div>
+
+                    <!-- SBAR 交班口語稿區塊（生成後顯示） -->
+                    <div id="sbar-section" class="sbar-section hidden">
+                        <div class="sbar-header">
+                            <h3>🗣️ SBAR 交班口語稿</h3>
+                            <div class="sbar-actions">
+                                <button class="btn btn-small btn-outline" onclick="copySBAR()" id="sbar-copy-btn">📋 複製</button>
+                                <button class="btn btn-small btn-secondary" onclick="printSBAR()">🖨️ 列印</button>
+                                <button class="btn btn-small btn-outline" onclick="closeSBAR()" style="color:var(--text-muted)">✕ 關閉</button>
+                            </div>
+                        </div>
+                        <div id="sbar-loading" class="sbar-loading hidden">
+                            <div class="shimmer-bar"></div>
+                            <span>AI 正在生成交班口語稿...</span>
+                        </div>
+                        <div id="sbar-content" class="sbar-content"></div>
+                    </div>
+
+                    <!-- 護理師工作負荷儀表板 -->
+                    <div class="workload-section">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                            <h3 style="margin:0;font-size:.95rem">👩‍⚕️ 護理師工作負荷</h3>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <input type="date" id="workload-date" style="font-size:.8rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:inherit;background:var(--bg);" aria-label="選擇日期">
+                                <button class="btn btn-small btn-outline" onclick="loadWorkload()">重新整理</button>
+                            </div>
+                        </div>
+                        <div class="workload-legend">
+                            <span class="wl-dot wl-low"></span>輕鬆
+                            <span class="wl-dot wl-medium"></span>中等
+                            <span class="wl-dot wl-high"></span>高負荷
+                            <span class="wl-dot wl-overload"></span>過載
+                        </div>
+                        <div id="workload-cards" class="workload-cards">
+                            <p style="color:var(--text-muted);font-size:.85rem">載入中...</p>
+                        </div>
+                        <div class="workload-chart-wrap">
+                            <canvas id="workload-chart" aria-label="護理師工作負荷長條圖" height="160"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- 護理師壓力概覽（護理長視角） -->
+                    <div class="stress-overview-section">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                            <h3 style="margin:0;font-size:.95rem">😰 護理師壓力概覽 <span style="font-size:.75rem;font-weight:400;color:var(--text-muted)">（過去 7 天行為分析）</span></h3>
+                            <button class="btn btn-small btn-outline" onclick="loadTeamStress()">重新整理</button>
+                        </div>
+                        <div id="stress-overview-cards" class="stress-overview-cards">
+                            <p style="color:var(--text-muted);font-size:.85rem">載入中...</p>
+                        </div>
+                    </div>
+
                     <div id="handover-patients"></div>
+
+                    <!-- 交班未完成給藥清單 -->
+                    <div class="handover-med-section">
+                        <h3 style="font-size:.95rem;margin-bottom:12px">💊 本班未完成給藥項目</h3>
+                        <div id="handover-med-reminders">
+                            <p class="med-reminder-empty">本班無待執行給藥項目 ✓</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 

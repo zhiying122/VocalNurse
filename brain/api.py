@@ -544,6 +544,476 @@ def api_delete_record(record_id: str, user: dict = Depends(get_current_user)):
 # 健康檢查
 # ══════════════════════════════════════════════════════════
 
+@app.post("/sbar/generate")
+def api_sbar_generate(req: dict, user: dict = Depends(get_current_user)):
+    """
+    AI 生成 SBAR 交班口語稿。
+
+    接收本班所有病患的紀錄摘要，透過 LLM 生成符合台灣醫院習慣的
+    SBAR（Situation / Background / Assessment / Recommendation）格式交班稿。
+
+    請求格式：
+        {
+          "shift": "日班",
+          "nurse_name": "王小明",
+          "patients": [
+            {
+              "name": "張三",
+              "bed": "3A-01",
+              "dx": "右膝關節置換術後",
+              "age": 72,
+              "records": [
+                { "soap": {...}, "medications": [...], "pain_scale": 4, "alerts": [...] }
+              ]
+            },
+            ...
+          ]
+        }
+
+    回傳格式：
+        {
+          "sbar_text": "【交班口語稿】...",
+          "patients": [
+            { "name": "張三", "bed": "3A-01", "sbar": "S: ... B: ... A: ... R: ..." },
+            ...
+          ]
+        }
+    """
+    from llm_client import call_llm
+
+    shift = req.get("shift", "")
+    nurse_name = req.get("nurse_name", "")
+    patients_data = req.get("patients", [])
+
+    if not patients_data:
+        raise HTTPException(400, "未提供病患資料")
+
+    # 組裝每位病患的摘要文字，送給 LLM
+    patient_summaries = []
+    for p in patients_data:
+        records_list = p.get("records", [])
+        if not records_list:
+            continue
+
+        # 取最新一筆紀錄
+        latest = records_list[-1]
+        soap = latest.get("soap", {})
+        meds = latest.get("medications", [])
+        pain = latest.get("pain_scale")
+        alerts = latest.get("alerts", [])
+
+        med_str = "、".join([f"{m.get('name','')} {m.get('dose','')} {m.get('unit','')}" for m in meds]) or "無"
+        alert_str = "、".join([a.get("message", "") for a in alerts if a.get("message")]) or "無"
+        pain_str = f"{pain}/10" if pain is not None else "未記錄"
+
+        summary = (
+            f"病患：{p.get('name','')}，床號：{p.get('bed','')}，年齡：{p.get('age','')}歲，"
+            f"診斷：{p.get('dx','')}\n"
+            f"主訴（S）：{soap.get('subjective','')}\n"
+            f"客觀（O）：{soap.get('objective','')}\n"
+            f"評估（A）：{soap.get('assessment','')}\n"
+            f"計畫（P）：{soap.get('plan','')}\n"
+            f"給藥：{med_str}，疼痛：{pain_str}，安全警示：{alert_str}"
+        )
+        patient_summaries.append({"name": p.get("name",""), "bed": p.get("bed",""), "summary": summary})
+
+    if not patient_summaries:
+        raise HTTPException(400, "所有病患均無紀錄")
+
+    SBAR_SYSTEM_PROMPT = """你是台灣醫院的資深護理長，擅長用 SBAR 格式進行護理交班。
+請根據提供的護理紀錄，為每位病患生成一段簡潔的 SBAR 交班口語稿。
+
+SBAR 格式說明：
+- S（Situation 現況）：病患目前最重要的狀況，一句話說清楚
+- B（Background 背景）：診斷、用藥、相關病史
+- A（Assessment 評估）：護理師的判斷，目前最需要關注的問題
+- R（Recommendation 建議）：接班護理師需要執行或注意的事項
+
+輸出規定：
+1. 只輸出 JSON，不加任何說明文字
+2. 語氣要口語化、自然，像護理師在說話，不要太書面
+3. 每個欄位 1-3 句話，簡潔有力
+4. 有安全警示的病患，R 欄位必須特別提醒
+5. 繁體中文
+
+輸出 JSON 格式：
+{"patients":[{"name":"病患姓名","bed":"床號","S":"現況一句話","B":"背景資訊","A":"評估重點","R":"接班建議"}]}"""
+
+    summaries_text = "\n\n".join([
+        f"【{i+1}】{ps['name']}（{ps['bed']}）\n{ps['summary']}"
+        for i, ps in enumerate(patient_summaries)
+    ])
+
+    user_prompt = f"請為以下 {len(patient_summaries)} 位病患生成 SBAR 交班口語稿：\n\n{summaries_text}\n\nJSON 輸出："
+
+    try:
+        result = call_llm(SBAR_SYSTEM_PROMPT, user_prompt)
+    except Exception as e:
+        raise HTTPException(500, f"SBAR 生成失敗：{e}")
+
+    # 組裝完整口語稿（供直接朗讀或列印）
+    sbar_patients = result.get("patients", [])
+    full_text_lines = [
+        f"【{shift} 交班口語稿】  護理師：{nurse_name}",
+        f"共 {len(sbar_patients)} 位病患\n",
+        "─" * 40,
+    ]
+    for sp in sbar_patients:
+        full_text_lines.append(
+            f"\n🏥 {sp.get('name','')}（{sp.get('bed','')}）\n"
+            f"S：{sp.get('S','')}\n"
+            f"B：{sp.get('B','')}\n"
+            f"A：{sp.get('A','')}\n"
+            f"R：{sp.get('R','')}"
+        )
+        full_text_lines.append("─" * 40)
+
+    return {
+        "sbar_text": "\n".join(full_text_lines),
+        "patients": sbar_patients,
+        "shift": shift,
+        "nurse_name": nurse_name,
+    }
+
+
+@app.get("/stress/team")
+def api_team_stress(
+    days: int = 7,
+    user: dict = Depends(get_current_user),
+):
+    """
+    全體護理師壓力概覽（護理長視角）。
+    回傳所有有紀錄的護理師的壓力等級摘要，
+    按壓力分數降序排列（最需要關注的在前面）。
+    """
+    from datetime import timedelta
+    from collections import defaultdict
+
+    all_recs = records.list_records(page=1, page_size=2000)
+    rec_list = all_recs.get("records", [])
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    recent_recs = [
+        r for r in rec_list
+        if datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) >= cutoff
+    ]
+
+    nurse_ids = list({r["nurse_id"] for r in recent_recs if r.get("nurse_id")})
+
+    results = []
+    for nid in nurse_ids:
+        n_recs = [r for r in recent_recs if r.get("nurse_id") == nid]
+        nurse_name = n_recs[0].get("nurse_name", nid) if n_recs else nid
+
+        late_night = sum(
+            1 for r in n_recs
+            if ((datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).hour + 8) % 24) >= 22
+            or ((datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).hour + 8) % 24) < 6
+        )
+        daily: dict[str, int] = defaultdict(int)
+        for r in n_recs:
+            daily[r["created_at"][:10]] += 1
+        work_days = len(daily)
+        max_daily = max(daily.values()) if daily else 0
+
+        score = min(late_night * 8 + max(work_days - 4, 0) * 5 + max(max_daily - 9, 0) * 5, 100)
+
+        level = "critical" if score >= 70 else "high" if score >= 45 else "medium" if score >= 20 else "low"
+
+        results.append({
+            "nurse_id": nid,
+            "nurse_name": nurse_name,
+            "stress_level": level,
+            "stress_score": score,
+            "work_days": work_days,
+            "late_night_count": late_night,
+            "total_records": len(n_recs),
+        })
+
+    results.sort(key=lambda x: x["stress_score"], reverse=True)
+    return {"nurses": results, "days_analyzed": days}
+
+
+@app.get("/stress/nurse/{nurse_id}")
+def api_nurse_stress(
+    nurse_id: str,
+    days: int = 7,
+    user: dict = Depends(get_current_user),
+):
+    """
+    單一護理師壓力指標分析（行為模式分析）。
+
+    分析過去 N 天的紀錄行為，偵測以下壓力指標：
+    1. 深夜補寫（22:00–06:00 建立的紀錄）
+    2. 連續高密度工作（單日紀錄數 ≥ 10）
+    3. 高警示密度（警示數 / 紀錄數 ≥ 0.4）
+    4. 連續多日工作（7 天內工作天數 ≥ 5）
+    5. 紀錄品質下降（近期 SOAP 欄位平均字數 < 歷史平均的 60%）
+    """
+    from datetime import timedelta
+    from collections import defaultdict
+
+    all_recs = records.list_records(page=1, page_size=2000)
+    rec_list = all_recs.get("records", [])
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    nurse_recs = [
+        r for r in rec_list
+        if r.get("nurse_id") == nurse_id
+        and datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) >= cutoff
+    ]
+
+    nurse_name = nurse_recs[0].get("nurse_name", nurse_id) if nurse_recs else nurse_id
+
+    if not nurse_recs:
+        return {
+            "nurse_id": nurse_id,
+            "nurse_name": nurse_name,
+            "stress_level": "low",
+            "stress_score": 0,
+            "indicators": [],
+            "care_message": "目前沒有足夠的紀錄資料進行分析。",
+            "days_analyzed": days,
+            "total_records": 0,
+            "work_days": 0,
+        }
+
+    indicators = []
+    stress_score = 0
+
+    # ── 指標 1：深夜補寫（22:00–06:00）──
+    late_night_recs = []
+    for r in nurse_recs:
+        try:
+            dt = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
+            local_hour = (dt.hour + 8) % 24
+            if local_hour >= 22 or local_hour < 6:
+                late_night_recs.append(r)
+        except Exception:
+            pass
+
+    if late_night_recs:
+        count = len(late_night_recs)
+        severity = "critical" if count >= 5 else "warning"
+        indicators.append({
+            "type": "late_night_writing",
+            "label": "深夜補寫",
+            "description": f"過去 {days} 天有 {count} 筆紀錄在深夜（22:00–06:00）建立",
+            "count": count,
+            "severity": severity,
+        })
+        stress_score += min(count * 8, 30)
+
+    # ── 指標 2：單日高密度工作（紀錄數 ≥ 10）──
+    daily_counts: dict[str, int] = defaultdict(int)
+    for r in nurse_recs:
+        day = r["created_at"][:10]
+        daily_counts[day] += 1
+
+    high_density_days = [(d, c) for d, c in daily_counts.items() if c >= 10]
+    if high_density_days:
+        max_count = max(c for _, c in high_density_days)
+        severity = "critical" if max_count >= 15 else "warning"
+        indicators.append({
+            "type": "high_density",
+            "label": "高密度工作日",
+            "description": f"有 {len(high_density_days)} 天單日紀錄數 ≥ 10（最高 {max_count} 筆）",
+            "count": len(high_density_days),
+            "severity": severity,
+        })
+        stress_score += min(len(high_density_days) * 10, 25)
+
+    # ── 指標 3：高警示密度（警示數 / 紀錄數 ≥ 0.4）──
+    total_alerts = sum(len(r.get("alerts") or r.get("warnings") or []) for r in nurse_recs)
+    alert_ratio = total_alerts / len(nurse_recs) if nurse_recs else 0
+    if alert_ratio >= 0.4:
+        severity = "critical" if alert_ratio >= 0.7 else "warning"
+        indicators.append({
+            "type": "high_alert_density",
+            "label": "高警示密度",
+            "description": f"平均每筆紀錄觸發 {alert_ratio:.1f} 次安全警示，壓力較高",
+            "count": total_alerts,
+            "severity": severity,
+        })
+        stress_score += min(int(alert_ratio * 20), 20)
+
+    # ── 指標 4：連續多日工作（工作天數 ≥ 5）──
+    work_days = len(daily_counts)
+    if work_days >= 5:
+        severity = "critical" if work_days >= 7 else "warning"
+        indicators.append({
+            "type": "consecutive_days",
+            "label": "連續多日工作",
+            "description": f"過去 {days} 天中有 {work_days} 天有建立紀錄",
+            "count": work_days,
+            "severity": severity,
+        })
+        stress_score += min((work_days - 4) * 5, 15)
+
+    # ── 指標 5：紀錄品質下降（近期 SOAP 平均字數 < 歷史平均 60%）──
+    def avg_soap_length(recs):
+        if not recs:
+            return 0
+        total = 0
+        for r in recs:
+            soap = r.get("soap") or {}
+            total += sum(len(str(v)) for v in soap.values())
+        return total / len(recs)
+
+    sorted_recs = sorted(nurse_recs, key=lambda r: r["created_at"])
+    recent_recs = sorted_recs[-min(5, len(sorted_recs)):]
+    older_recs = sorted_recs[:-min(5, len(sorted_recs))] if len(sorted_recs) > 5 else []
+
+    if older_recs:
+        recent_avg = avg_soap_length(recent_recs)
+        older_avg = avg_soap_length(older_recs)
+        if older_avg > 0 and recent_avg < older_avg * 0.6:
+            indicators.append({
+                "type": "quality_decline",
+                "label": "紀錄品質下降",
+                "description": f"近期 SOAP 平均字數（{int(recent_avg)}字）較歷史平均（{int(older_avg)}字）下降超過 40%",
+                "count": int((1 - recent_avg / older_avg) * 100),
+                "severity": "warning",
+            })
+            stress_score += 10
+
+    stress_score = min(stress_score, 100)
+    if stress_score >= 70:
+        stress_level = "critical"
+    elif stress_score >= 45:
+        stress_level = "high"
+    elif stress_score >= 20:
+        stress_level = "medium"
+    else:
+        stress_level = "low"
+
+    care_messages = {
+        "critical": f"💙 {nurse_name}，系統偵測到你最近工作壓力很大。你的付出我們都看見了，請記得照顧自己，必要時和護理長聊聊。",
+        "high":     f"💛 {nurse_name}，你最近工作很努力。記得適時休息，喝杯水、深呼吸，你照顧好自己，才能照顧好病患。",
+        "medium":   f"🌿 {nurse_name}，工作辛苦了。注意休息，保持良好的工作節奏。",
+        "low":      f"✨ {nurse_name}，你的工作狀態看起來不錯，繼續保持！",
+    }
+    care_message = care_messages[stress_level]
+    if work_days >= 5:
+        care_message += f" 你已連續 {work_days} 天有工作紀錄。"
+    if late_night_recs:
+        care_message += f" 有 {len(late_night_recs)} 次深夜補寫紀錄，請注意作息。"
+
+    return {
+        "nurse_id": nurse_id,
+        "nurse_name": nurse_name,
+        "stress_level": stress_level,
+        "stress_score": stress_score,
+        "indicators": indicators,
+        "care_message": care_message,
+        "days_analyzed": days,
+        "total_records": len(nurse_recs),
+        "work_days": work_days,
+    }
+
+
+@app.get("/workload")
+def api_workload(
+    date: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    """
+    護理師工作負荷統計（護理長儀表板用）。
+
+    統計每位護理師在指定日期（預設今天）的：
+    - record_count  — SOAP 紀錄數
+    - alert_count   — 觸發安全警示次數
+    - high_risk_patients — 負責的高風險病患數（有警示的病患）
+    - patient_ids   — 負責的病患 ID 集合
+
+    回傳格式：
+        {
+          "date": "2026-05-31",
+          "nurses": [
+            {
+              "nurse_id": "N001",
+              "nurse_name": "王小明",
+              "record_count": 8,
+              "alert_count": 3,
+              "high_risk_patients": 2,
+              "load_level": "high"   # low / medium / high / overload
+            },
+            ...
+          ]
+        }
+    """
+    # 預設今天
+    target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    all_recs = records.list_records(date_filter=target_date, page=1, page_size=1000)
+    rec_list = all_recs.get("records", [])
+
+    # 以 nurse_id 為 key 彙整統計
+    nurse_stats: dict[str, dict] = {}
+
+    for r in rec_list:
+        nid = r.get("nurse_id") or "unknown"
+        nname = r.get("nurse_name") or nid
+
+        if nid not in nurse_stats:
+            nurse_stats[nid] = {
+                "nurse_id": nid,
+                "nurse_name": nname,
+                "record_count": 0,
+                "alert_count": 0,
+                "patient_ids": set(),
+                "alerted_patient_ids": set(),
+            }
+
+        s = nurse_stats[nid]
+        s["record_count"] += 1
+        s["patient_ids"].add(r.get("patient_id", ""))
+
+        # 計算警示數（優先用 alerts 陣列，fallback 到 warnings）
+        alert_items = r.get("alerts") or []
+        warning_items = r.get("warnings") or []
+        n_alerts = len(alert_items) if alert_items else len(warning_items)
+        s["alert_count"] += n_alerts
+
+        if n_alerts > 0:
+            s["alerted_patient_ids"].add(r.get("patient_id", ""))
+
+    # 計算負荷等級並序列化 set → int
+    result_nurses = []
+    for s in nurse_stats.values():
+        rc = s["record_count"]
+        ac = s["alert_count"]
+        hp = len(s["alerted_patient_ids"])
+
+        # 負荷等級判斷（可依醫院實際情況調整閾值）
+        if rc >= 15 or ac >= 8:
+            load_level = "overload"   # 過載（紅）
+        elif rc >= 10 or ac >= 5:
+            load_level = "high"       # 高負荷（橙）
+        elif rc >= 5 or ac >= 2:
+            load_level = "medium"     # 中等（黃）
+        else:
+            load_level = "low"        # 輕鬆（綠）
+
+        result_nurses.append({
+            "nurse_id": s["nurse_id"],
+            "nurse_name": s["nurse_name"],
+            "record_count": rc,
+            "alert_count": ac,
+            "high_risk_patients": hp,
+            "patient_count": len(s["patient_ids"]),
+            "load_level": load_level,
+        })
+
+    # 按紀錄數降序排列（最忙的在前面）
+    result_nurses.sort(key=lambda x: x["record_count"], reverse=True)
+
+    return {
+        "date": target_date,
+        "nurses": result_nurses,
+    }
+
+
 @app.get("/health")
 def health():
     """健康檢查端點，用於確認後端服務是否正常運行"""

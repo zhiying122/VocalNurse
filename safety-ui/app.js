@@ -1023,7 +1023,11 @@ function switchTab(tab) {
     document.getElementById('tab-patrol').classList.toggle('hidden', tab!=='patrol');
     document.getElementById('tab-handover').classList.toggle('hidden', tab!=='handover');
     document.getElementById('tab-tech').classList.toggle('hidden', tab!=='tech');
-    if (tab==='handover') renderHandover();
+    if (tab==='handover') {
+        renderHandover();
+        loadWorkload();
+        loadTeamStress();
+    }
 }
 
 function renderTimeline() {
@@ -1351,10 +1355,16 @@ function renderAuditLog() {
 // Hook into existing functions to log actions
 const _origConfirmSave = confirmSave;
 confirmSave = async function() {
+    const patientSnapshot = currentPatient ? { ...currentPatient } : null;
+    const outputSnapshot = currentOutput ? { ...currentOutput } : null;
     await _origConfirmSave();
     if (currentPatient && currentOutput) {
         const meds = currentOutput.medications?.map(m => m.name).join(', ') || '無';
         addAuditLog('存檔 SOAP', `病患：${currentPatient.name} | 藥物：${meds}`);
+    }
+    // 存檔成功後排程給藥提醒
+    if (patientSnapshot && outputSnapshot?.soap?.plan && outputSnapshot?.medications?.length) {
+        scheduleMedicationReminders(patientSnapshot, outputSnapshot.soap, outputSnapshot.medications);
     }
 };
 
@@ -1364,6 +1374,10 @@ doLogin = async function() {
     if (currentUser) {
         loadAuditLogs();  // 【修復】先從 localStorage 還原歷史紀錄
         addAuditLog('登入系統', `員工：${currentUser.name}`);
+        // 請求通知權限（給藥提醒用）
+        await requestNotificationPermission();
+        // 延遲 3 秒後分析壓力狀態（避免影響登入體驗）
+        setTimeout(checkSelfStress, 3000);
     }
 };
 
@@ -1609,4 +1623,837 @@ async function saveRecordEdit() {
     const saveEditBtn = document.getElementById('save-edit-btn');
     if (editBtn) editBtn.classList.remove('hidden');
     if (saveEditBtn) saveEditBtn.classList.add('hidden');
+}
+
+// ══════════════════════════════════════
+// 護理師工作負荷儀表板
+// ══════════════════════════════════════
+
+let workloadChart = null;
+
+/**
+ * 初始化日期選擇器為今天，並載入工作負荷資料。
+ */
+function initWorkloadDate() {
+    const dateInput = document.getElementById('workload-date');
+    if (!dateInput) return;
+    const today = new Date().toISOString().slice(0, 10);
+    dateInput.value = today;
+}
+
+/**
+ * 從後端 /workload API 載入護理師工作負荷資料，
+ * 並呼叫 renderWorkload() 渲染卡片和圖表。
+ */
+async function loadWorkload() {
+    const dateInput = document.getElementById('workload-date');
+    const date = dateInput?.value || new Date().toISOString().slice(0, 10);
+
+    const cardsEl = document.getElementById('workload-cards');
+    if (cardsEl) cardsEl.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">載入中...</p>';
+
+    try {
+        const res = await fetchWithTimeout(`${API}/workload?date=${date}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+        if (!res.ok) throw new Error(`API 錯誤 ${res.status}`);
+        const data = await res.json();
+        renderWorkload(data);
+    } catch (e) {
+        if (cardsEl) cardsEl.innerHTML = `<p style="color:var(--danger);font-size:.85rem">⚠ 載入失敗：${e.message}</p>`;
+        console.warn('[Workload] 載入失敗', e);
+    }
+}
+
+/**
+ * 渲染護理師工作負荷卡片和長條圖。
+ *
+ * 負荷等級對應顏色：
+ *   low      — 綠色（輕鬆）
+ *   medium   — 黃色（中等）
+ *   high     — 橙色（高負荷）
+ *   overload — 紅色（過載）
+ *
+ * @param {Object} data — 後端 /workload 回傳的資料
+ */
+function renderWorkload(data) {
+    const nurses = data.nurses || [];
+    const cardsEl = document.getElementById('workload-cards');
+    if (!cardsEl) return;
+
+    const LEVEL_COLOR = {
+        low:      { bg: 'rgba(56,142,60,.12)',  border: '#388e3c', text: '#388e3c', label: '輕鬆' },
+        medium:   { bg: 'rgba(245,124,0,.12)',  border: '#f57c00', text: '#f57c00', label: '中等' },
+        high:     { bg: 'rgba(230,81,0,.12)',   border: '#e65100', text: '#e65100', label: '高負荷' },
+        overload: { bg: 'rgba(198,40,40,.12)',  border: '#c62828', text: '#c62828', label: '過載 ⚠' },
+    };
+
+    if (!nurses.length) {
+        cardsEl.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">今日尚無護理師紀錄</p>';
+        // 清空圖表
+        if (workloadChart) { workloadChart.destroy(); workloadChart = null; }
+        return;
+    }
+
+    // 渲染卡片
+    cardsEl.innerHTML = nurses.map(n => {
+        const c = LEVEL_COLOR[n.load_level] || LEVEL_COLOR.low;
+        return `
+        <div class="workload-card" style="border-left:4px solid ${c.border};background:${c.bg}">
+            <div class="wl-card-header">
+                <span class="wl-nurse-name">${n.nurse_name}</span>
+                <span class="wl-level-badge" style="color:${c.text};border-color:${c.border}">${c.label}</span>
+            </div>
+            <div class="wl-stats">
+                <div class="wl-stat">
+                    <span class="wl-stat-num">${n.record_count}</span>
+                    <span class="wl-stat-label">SOAP 紀錄</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num" style="color:${n.alert_count > 0 ? 'var(--danger)' : 'inherit'}">${n.alert_count}</span>
+                    <span class="wl-stat-label">安全警示</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num">${n.patient_count}</span>
+                    <span class="wl-stat-label">負責病患</span>
+                </div>
+                <div class="wl-stat">
+                    <span class="wl-stat-num" style="color:${n.high_risk_patients > 0 ? 'var(--warning)' : 'inherit'}">${n.high_risk_patients}</span>
+                    <span class="wl-stat-label">高風險病患</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // 渲染長條圖
+    renderWorkloadChart(nurses, LEVEL_COLOR);
+}
+
+/**
+ * 用 Chart.js 渲染護理師工作負荷長條圖（紀錄數 + 警示數）。
+ */
+function renderWorkloadChart(nurses, LEVEL_COLOR) {
+    const ctx = document.getElementById('workload-chart');
+    if (!ctx) return;
+
+    if (workloadChart) { workloadChart.destroy(); workloadChart = null; }
+
+    const labels = nurses.map(n => n.nurse_name);
+    const recordData = nurses.map(n => n.record_count);
+    const alertData = nurses.map(n => n.alert_count);
+    const bgColors = nurses.map(n => (LEVEL_COLOR[n.load_level] || LEVEL_COLOR.low).border);
+
+    workloadChart = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'SOAP 紀錄數',
+                    data: recordData,
+                    backgroundColor: bgColors.map(c => c + '99'), // 60% 透明
+                    borderColor: bgColors,
+                    borderWidth: 2,
+                    borderRadius: 4,
+                },
+                {
+                    label: '安全警示數',
+                    data: alertData,
+                    backgroundColor: 'rgba(198,40,40,0.25)',
+                    borderColor: '#c62828',
+                    borderWidth: 2,
+                    borderRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 } } },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(items) {
+                            const idx = items[0]?.dataIndex;
+                            if (idx == null) return '';
+                            const n = nurses[idx];
+                            return [
+                                `負責病患：${n.patient_count} 人`,
+                                `高風險病患：${n.high_risk_patients} 人`,
+                                `負荷等級：${n.load_level}`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 },
+                    title: { display: true, text: '次數' }
+                },
+                x: {
+                    title: { display: true, text: '護理師' }
+                }
+            }
+        }
+    });
+}
+
+// 在 DOMContentLoaded 時初始化日期選擇器
+document.addEventListener('DOMContentLoaded', () => {
+    initWorkloadDate();
+});
+
+// ══════════════════════════════════════
+// 智慧給藥提醒 + 未給藥警示
+// ══════════════════════════════════════
+
+/**
+ * 給藥提醒排程表。
+ * 格式：[{ patientId, patientName, drugName, dose, unit, scheduledTime (HH:MM), timerId, done }]
+ */
+let medicationReminders = [];
+let _notificationPermission = 'default'; // 'default' | 'granted' | 'denied'
+
+/**
+ * 請求瀏覽器通知權限（登入後呼叫一次）。
+ */
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+        _notificationPermission = 'granted';
+        return;
+    }
+    if (Notification.permission !== 'denied') {
+        const perm = await Notification.requestPermission();
+        _notificationPermission = perm;
+    } else {
+        _notificationPermission = 'denied';
+    }
+}
+
+/**
+ * 從 SOAP P（計畫）欄位文字中解析給藥時間。
+ *
+ * 支援格式：
+ *   - 絕對時間：「14:00 給 Morphine」「下午兩點 Voren」「2pm Morphine」
+ *   - 相對頻率：「Q4H」「Q6H」「Q8H」「Q12H」「BID」「TID」「QID」「QD」
+ *   - PRN：「PRN Morphine」（不排程，只標記為 PRN）
+ *
+ * @param {string} planText — SOAP P 欄位文字
+ * @param {Array}  medications — 本次 SOAP 的藥物列表
+ * @returns {Array} — [{ drugName, dose, unit, scheduledTime, isPRN }]
+ */
+function parseMedicationSchedule(planText, medications) {
+    if (!planText || !medications?.length) return [];
+    const results = [];
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+
+    // 建立藥物名稱查找集合（含別名）
+    const drugNames = medications.map(m => ({
+        name: m.name,
+        dose: m.dose || '',
+        unit: m.unit || '',
+        pattern: new RegExp(m.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    }));
+
+    // ── 1. 絕對時間解析 ──
+    // 格式：HH:MM、HH點、上午/下午 + 時間
+    const absTimePatterns = [
+        // 24h 格式：14:00、14:30
+        /(\d{1,2}):(\d{2})/g,
+        // 中文時間：下午兩點、上午十點
+        /(?:上午|早上)(\d{1,2})點/g,
+        /(?:下午|晚上)(\d{1,2})點/g,
+        // 英文 am/pm：2pm、10am
+        /(\d{1,2})\s*(?:am|pm)/gi,
+    ];
+
+    // 提取所有絕對時間點
+    const absoluteTimes = [];
+
+    // HH:MM
+    let m;
+    const hhmmRe = /(\d{1,2}):(\d{2})/g;
+    while ((m = hhmmRe.exec(planText)) !== null) {
+        const h = parseInt(m[1]);
+        const min = parseInt(m[2]);
+        if (h >= 0 && h <= 23 && min >= 0 && min <= 59) {
+            absoluteTimes.push({ h, min, raw: m[0] });
+        }
+    }
+
+    // 上午 X 點
+    const amRe = /(?:上午|早上)(\d{1,2})點/g;
+    while ((m = amRe.exec(planText)) !== null) {
+        const h = parseInt(m[1]);
+        if (h >= 1 && h <= 12) absoluteTimes.push({ h, min: 0, raw: m[0] });
+    }
+
+    // 下午 X 點
+    const pmRe = /(?:下午|晚上)(\d{1,2})點/g;
+    while ((m = pmRe.exec(planText)) !== null) {
+        const h = parseInt(m[1]) + 12;
+        if (h >= 13 && h <= 23) absoluteTimes.push({ h, min: 0, raw: m[0] });
+    }
+
+    // X am/pm
+    const ampmRe = /(\d{1,2})\s*(am|pm)/gi;
+    while ((m = ampmRe.exec(planText)) !== null) {
+        let h = parseInt(m[1]);
+        if (m[2].toLowerCase() === 'pm' && h < 12) h += 12;
+        if (m[2].toLowerCase() === 'am' && h === 12) h = 0;
+        absoluteTimes.push({ h, min: 0, raw: m[0] });
+    }
+
+    // 對每個絕對時間，找最近的藥物名稱（前後 50 字元內）
+    for (const t of absoluteTimes) {
+        const timeIdx = planText.indexOf(t.raw);
+        const context = planText.substring(Math.max(0, timeIdx - 50), timeIdx + 50);
+        for (const drug of drugNames) {
+            if (drug.pattern.test(context)) {
+                const scheduledTime = `${t.h.toString().padStart(2, '0')}:${t.min.toString().padStart(2, '0')}`;
+                results.push({
+                    drugName: drug.name,
+                    dose: drug.dose,
+                    unit: drug.unit,
+                    scheduledTime,
+                    isPRN: false,
+                    source: 'absolute'
+                });
+            }
+        }
+    }
+
+    // ── 2. 頻率解析（Q4H / Q6H / BID / TID / QID / QD）──
+    const freqMap = {
+        'QD':  [8],                          // 每日一次：早上 8 點
+        'QHS': [22],                         // 睡前：晚上 10 點
+        'BID': [8, 20],                      // 每日兩次：早 8、晚 8
+        'TID': [8, 14, 20],                  // 每日三次：早 8、下午 2、晚 8
+        'QID': [8, 12, 16, 20],              // 每日四次
+        'Q4H': [0, 4, 8, 12, 16, 20],       // 每 4 小時
+        'Q6H': [0, 6, 12, 18],              // 每 6 小時
+        'Q8H': [0, 8, 16],                  // 每 8 小時
+        'Q12H': [0, 12],                    // 每 12 小時
+    };
+
+    for (const [freq, hours] of Object.entries(freqMap)) {
+        const freqRe = new RegExp(freq, 'i');
+        if (!freqRe.test(planText)) continue;
+
+        // 找頻率附近的藥物
+        const freqIdx = planText.search(freqRe);
+        const context = planText.substring(Math.max(0, freqIdx - 60), freqIdx + 60);
+
+        for (const drug of drugNames) {
+            if (!drug.pattern.test(context)) continue;
+
+            // 只排程「下一個」時間點（未來最近的）
+            const nextHour = hours.find(h => h > currentHour || (h === currentHour && 0 > currentMin));
+            const targetHour = nextHour !== undefined ? nextHour : hours[0]; // 若今天都過了，取第一個（明天）
+            const scheduledTime = `${targetHour.toString().padStart(2, '0')}:00`;
+
+            // 避免重複加入同一藥物
+            const alreadyAdded = results.some(r => r.drugName === drug.name && r.scheduledTime === scheduledTime);
+            if (!alreadyAdded) {
+                results.push({
+                    drugName: drug.name,
+                    dose: drug.dose,
+                    unit: drug.unit,
+                    scheduledTime,
+                    isPRN: false,
+                    source: `freq:${freq}`
+                });
+            }
+        }
+    }
+
+    // ── 3. PRN 標記 ──
+    const prnRe = /PRN/i;
+    if (prnRe.test(planText)) {
+        const prnIdx = planText.search(prnRe);
+        const context = planText.substring(Math.max(0, prnIdx - 40), prnIdx + 40);
+        for (const drug of drugNames) {
+            if (drug.pattern.test(context)) {
+                const alreadyAdded = results.some(r => r.drugName === drug.name);
+                if (!alreadyAdded) {
+                    results.push({
+                        drugName: drug.name,
+                        dose: drug.dose,
+                        unit: drug.unit,
+                        scheduledTime: null,
+                        isPRN: true,
+                        source: 'PRN'
+                    });
+                }
+            }
+        }
+    }
+
+    return results;
+}
+
+/**
+ * 計算距離指定時間（HH:MM）還有幾毫秒。
+ * 若時間已過，回傳 null（不排程）。
+ */
+function msUntil(timeStr) {
+    if (!timeStr) return null;
+    const [h, min] = timeStr.split(':').map(Number);
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(h, min, 0, 0);
+    const diff = target - now;
+    return diff > 0 ? diff : null; // 已過時間不排程
+}
+
+/**
+ * 推送瀏覽器通知。
+ */
+function pushMedNotification(patientName, drugName, dose, unit, scheduledTime) {
+    const body = `${patientName} — ${drugName} ${dose}${unit} 給藥時間到了`;
+    if (_notificationPermission === 'granted') {
+        try {
+            new Notification('💊 給藥提醒', { body, icon: 'logo.png', tag: `med-${patientName}-${drugName}` });
+        } catch (e) {
+            console.warn('[MedReminder] Notification 失敗', e);
+        }
+    }
+    // 同時在畫面上顯示 Toast
+    showToast(`💊 給藥提醒：${body}`, 6000);
+    // 標記為已提醒
+    const reminder = medicationReminders.find(r =>
+        r.patientName === patientName && r.drugName === drugName && r.scheduledTime === scheduledTime
+    );
+    if (reminder) reminder.notified = true;
+}
+
+/**
+ * 為一筆 SOAP 紀錄排程給藥提醒。
+ * 在 confirmSave() 成功後呼叫。
+ *
+ * @param {Object} patient — 病患資料 { id, name }
+ * @param {Object} soap    — SOAP 物件 { plan, ... }
+ * @param {Array}  medications — 藥物列表
+ */
+function scheduleMedicationReminders(patient, soap, medications) {
+    if (!patient || !soap?.plan || !medications?.length) return;
+
+    const schedule = parseMedicationSchedule(soap.plan, medications);
+    if (!schedule.length) return;
+
+    for (const item of schedule) {
+        if (item.isPRN || !item.scheduledTime) continue; // PRN 不自動排程
+
+        const delay = msUntil(item.scheduledTime);
+        if (delay === null) continue; // 時間已過，跳過
+
+        // 避免重複排程同一病患同一藥物同一時間
+        const exists = medicationReminders.some(r =>
+            r.patientId === patient.id &&
+            r.drugName === item.drugName &&
+            r.scheduledTime === item.scheduledTime
+        );
+        if (exists) continue;
+
+        const timerId = setTimeout(() => {
+            pushMedNotification(patient.name, item.drugName, item.dose, item.unit, item.scheduledTime);
+            renderPendingMedications(); // 重新渲染未完成清單
+        }, delay);
+
+        medicationReminders.push({
+            patientId: patient.id,
+            patientName: patient.name,
+            drugName: item.drugName,
+            dose: item.dose,
+            unit: item.unit,
+            scheduledTime: item.scheduledTime,
+            timerId,
+            notified: false,
+            done: false,
+        });
+
+        console.log(`[MedReminder] 已排程：${patient.name} ${item.drugName} @ ${item.scheduledTime}（${Math.round(delay / 60000)} 分鐘後）`);
+    }
+
+    renderPendingMedications();
+}
+
+/**
+ * 手動標記某筆給藥提醒為「已完成」。
+ */
+function markMedDone(patientId, drugName, scheduledTime) {
+    const reminder = medicationReminders.find(r =>
+        r.patientId === patientId &&
+        r.drugName === drugName &&
+        r.scheduledTime === scheduledTime
+    );
+    if (reminder) {
+        reminder.done = true;
+        clearTimeout(reminder.timerId);
+        addAuditLog('給藥完成', `${reminder.patientName} — ${drugName} ${scheduledTime}`);
+    }
+    renderPendingMedications();
+}
+
+/**
+ * 渲染「本班未完成給藥清單」。
+ * 顯示在巡房模式側邊欄和交班儀表板。
+ */
+function renderPendingMedications() {
+    const pending = medicationReminders.filter(r => !r.done);
+    const now = new Date();
+    const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    // 分類：已逾時（時間已過但未完成）vs 待執行
+    const overdue = pending.filter(r => r.scheduledTime && r.scheduledTime < currentTimeStr);
+
+    const html = pending.length === 0
+        ? '<p class="med-reminder-empty">本班無待執行給藥項目 ✓</p>'
+        : pending.map(r => {
+            const isOverdue = r.scheduledTime && r.scheduledTime < currentTimeStr;
+            return `
+            <div class="med-reminder-item ${isOverdue ? 'overdue' : ''}">
+                <div class="med-reminder-info">
+                    <span class="med-reminder-time">${r.scheduledTime || 'PRN'}</span>
+                    <span class="med-reminder-patient">${r.patientName}</span>
+                    <span class="med-reminder-drug">${r.drugName} ${r.dose}${r.unit}</span>
+                    ${isOverdue ? '<span class="med-reminder-overdue-badge">逾時</span>' : ''}
+                </div>
+                <button class="btn btn-small btn-success" onclick="markMedDone('${r.patientId}','${r.drugName}','${r.scheduledTime}')">✓ 已給</button>
+            </div>`;
+        }).join('');
+
+    // 更新巡房模式側邊欄
+    const sideEl = document.getElementById('med-reminder-panel');
+    if (sideEl) {
+        sideEl.innerHTML = html;
+        // 更新 badge 數量
+        const badge = document.getElementById('med-reminder-badge');
+        if (badge) {
+            const overdueCount = pending.filter(r => r.scheduledTime && r.scheduledTime < currentTimeStr).length;
+            badge.textContent = pending.length > 0 ? pending.length : '';
+            badge.style.display = pending.length > 0 ? '' : 'none';
+            badge.style.background = overdueCount > 0 ? 'var(--danger)' : 'var(--accent)';
+        }
+    }
+
+    // 更新交班儀表板的未完成清單
+    const handoverEl = document.getElementById('handover-med-reminders');
+    if (handoverEl) handoverEl.innerHTML = html;
+}
+
+// 每分鐘重新渲染一次（更新逾時狀態）
+setInterval(renderPendingMedications, 60000);
+
+// ══════════════════════════════════════
+// SBAR 交班口語稿生成
+// ══════════════════════════════════════
+
+/**
+ * 呼叫後端 /sbar/generate，生成 SBAR 交班口語稿。
+ * 收集本班所有病患的最新紀錄，送給 LLM 生成。
+ */
+async function generateSBAR() {
+    const btn = document.getElementById('sbar-btn');
+    const section = document.getElementById('sbar-section');
+    const loading = document.getElementById('sbar-loading');
+    const content = document.getElementById('sbar-content');
+
+    if (!patients.length) {
+        showToast('目前沒有病患資料');
+        return;
+    }
+
+    // 顯示區塊和 loading 狀態
+    section.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    content.innerHTML = '';
+    setButtonLoading(btn, true);
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    try {
+        // 收集所有病患的紀錄（從後端取最新資料）
+        const patientsPayload = await Promise.all(patients.map(async p => {
+            let recs = allRecords[p.id] || [];
+            // 若本地快取為空，嘗試從後端取
+            if (!recs.length) {
+                try {
+                    const res = await fetchWithTimeout(`${API}/records/patient/${p.id}`, {
+                        headers: getAuthHeaders()
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        recs = data.map(r => ({
+                            soap: r.soap,
+                            medications: r.medications || [],
+                            pain_scale: r.pain_scale,
+                            alerts: r.alerts || [],
+                        }));
+                    }
+                } catch (_) { /* 使用本地快取 */ }
+            }
+            return {
+                name: p.name,
+                bed: p.bed,
+                dx: p.dx || '',
+                age: p.age || '',
+                records: recs.slice(-3), // 最多取最近 3 筆
+            };
+        }));
+
+        // 過濾掉沒有紀錄的病患
+        const patientsWithRecords = patientsPayload.filter(p => p.records.length > 0);
+
+        if (!patientsWithRecords.length) {
+            loading.classList.add('hidden');
+            content.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px">本班尚無護理紀錄，無法生成交班口語稿。</p>';
+            return;
+        }
+
+        const payload = {
+            shift: getCurrentShift(),
+            nurse_name: currentUser?.name || '',
+            patients: patientsWithRecords,
+        };
+
+        const res = await fetchWithTimeout(`${API}/sbar/generate`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload),
+        }, 120000); // SBAR 生成最多等 2 分鐘
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        loading.classList.add('hidden');
+        renderSBAR(data);
+        addAuditLog('生成 SBAR', `${getCurrentShift()} 交班口語稿，共 ${data.patients?.length || 0} 位病患`);
+
+    } catch (e) {
+        loading.classList.add('hidden');
+        content.innerHTML = `<p style="color:var(--danger);padding:16px">⚠ 生成失敗：${e.message}<br><small>請確認後端 Ollama 正在運行</small></p>`;
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+/**
+ * 渲染 SBAR 口語稿到畫面。
+ * 每位病患一張卡片，SBAR 四個欄位分色顯示。
+ */
+function renderSBAR(data) {
+    const content = document.getElementById('sbar-content');
+    if (!content) return;
+
+    const { sbar_text, patients: sbarPatients, shift, nurse_name } = data;
+
+    // 儲存原始文字供複製/列印用
+    content.dataset.rawText = sbar_text || '';
+
+    const SBAR_COLORS = {
+        S: { bg: 'rgba(198,40,40,.07)',  border: '#c62828', label: 'S 現況' },
+        B: { bg: 'rgba(45,58,140,.07)',  border: '#2d3a8c', label: 'B 背景' },
+        A: { bg: 'rgba(245,124,0,.07)',  border: '#f57c00', label: 'A 評估' },
+        R: { bg: 'rgba(56,142,60,.07)',  border: '#388e3c', label: 'R 建議' },
+    };
+
+    const headerHtml = `
+        <div class="sbar-meta">
+            <span class="sbar-shift-badge">${shift}</span>
+            <span>護理師：${nurse_name}</span>
+            <span style="color:var(--text-muted);font-size:.8rem">共 ${sbarPatients.length} 位病患</span>
+        </div>`;
+
+    const cardsHtml = sbarPatients.map(sp => {
+        const sbarRows = ['S', 'B', 'A', 'R'].map(key => {
+            const c = SBAR_COLORS[key];
+            return `
+            <div class="sbar-row" style="background:${c.bg};border-left:3px solid ${c.border}">
+                <span class="sbar-row-label" style="color:${c.border}">${c.label}</span>
+                <span class="sbar-row-text">${sp[key] || '—'}</span>
+            </div>`;
+        }).join('');
+
+        return `
+        <div class="sbar-patient-card">
+            <div class="sbar-patient-header">
+                <span class="sbar-patient-name">${sp.name}</span>
+                <span class="sbar-patient-bed">${sp.bed}</span>
+            </div>
+            <div class="sbar-rows">${sbarRows}</div>
+        </div>`;
+    }).join('');
+
+    content.innerHTML = headerHtml + cardsHtml;
+}
+
+/**
+ * 複製 SBAR 純文字到剪貼簿。
+ */
+async function copySBAR() {
+    const content = document.getElementById('sbar-content');
+    const text = content?.dataset.rawText || content?.innerText || '';
+    if (!text) { showToast('沒有可複製的內容'); return; }
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast('✓ 已複製到剪貼簿');
+    } catch (e) {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('✓ 已複製到剪貼簿');
+    }
+}
+
+/**
+ * 列印 SBAR 口語稿（只印 SBAR 區塊）。
+ */
+function printSBAR() {
+    const section = document.getElementById('sbar-section');
+    if (!section) return;
+    // 加上列印標記 class，CSS @media print 會只顯示此區塊
+    document.body.classList.add('print-sbar-only');
+    window.print();
+    document.body.classList.remove('print-sbar-only');
+}
+
+/**
+ * 關閉 SBAR 區塊。
+ */
+function closeSBAR() {
+    const section = document.getElementById('sbar-section');
+    if (section) section.classList.add('hidden');
+}
+
+// ══════════════════════════════════════
+// 護理師情緒壓力偵測
+// ══════════════════════════════════════
+
+const STRESS_LEVEL_CONFIG = {
+    low:      { color: '#388e3c', bg: 'rgba(56,142,60,.1)',   border: '#388e3c', label: '狀態良好', icon: '✨' },
+    medium:   { color: '#f57c00', bg: 'rgba(245,124,0,.1)',   border: '#f57c00', label: '注意休息', icon: '🌿' },
+    high:     { color: '#e65100', bg: 'rgba(230,81,0,.1)',    border: '#e65100', label: '需要關注', icon: '💛' },
+    critical: { color: '#c62828', bg: 'rgba(198,40,40,.1)',   border: '#c62828', label: '高度關注', icon: '💙' },
+};
+
+/**
+ * 登入後自動分析自己的壓力狀態，顯示關懷提示。
+ * 只在壓力等級 medium 以上才顯示 banner，避免打擾。
+ */
+async function checkSelfStress() {
+    if (!currentUser?.employee_id) return;
+    try {
+        const res = await fetchWithTimeout(
+            `${API}/stress/nurse/${currentUser.employee_id}?days=7`,
+            { headers: getAuthHeaders() }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // 只在 medium 以上顯示 banner
+        if (data.stress_level === 'low') return;
+
+        const cfg = STRESS_LEVEL_CONFIG[data.stress_level] || STRESS_LEVEL_CONFIG.low;
+        const banner = document.getElementById('care-banner');
+        const msg = document.getElementById('care-banner-msg');
+        const icon = document.getElementById('care-banner-icon');
+
+        if (banner && msg) {
+            icon.textContent = cfg.icon;
+            msg.textContent = data.care_message;
+            banner.style.borderLeftColor = cfg.border;
+            banner.style.background = cfg.bg;
+            banner.classList.remove('hidden');
+
+            // 高壓力等級自動 30 秒後收起（不強迫護理師一直看到）
+            if (data.stress_level !== 'critical') {
+                setTimeout(() => banner.classList.add('hidden'), 30000);
+            }
+        }
+    } catch (e) {
+        // 靜默失敗，不影響主流程
+        console.warn('[Stress] 自我壓力分析失敗', e);
+    }
+}
+
+function dismissCareBanner() {
+    const banner = document.getElementById('care-banner');
+    if (banner) banner.classList.add('hidden');
+}
+
+/**
+ * 載入全體護理師壓力概覽（護理長視角）。
+ * 在交班儀表板切換時呼叫。
+ */
+async function loadTeamStress() {
+    const el = document.getElementById('stress-overview-cards');
+    if (!el) return;
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">載入中...</p>';
+
+    try {
+        const res = await fetchWithTimeout(
+            `${API}/stress/team?days=7`,
+            { headers: getAuthHeaders() }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderTeamStress(data);
+    } catch (e) {
+        el.innerHTML = `<p style="color:var(--danger);font-size:.85rem">⚠ 載入失敗：${e.message}</p>`;
+    }
+}
+
+/**
+ * 渲染全體護理師壓力概覽卡片。
+ */
+function renderTeamStress(data) {
+    const el = document.getElementById('stress-overview-cards');
+    if (!el) return;
+
+    const nurses = data.nurses || [];
+    if (!nurses.length) {
+        el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem">過去 7 天尚無護理師紀錄</p>';
+        return;
+    }
+
+    el.innerHTML = nurses.map(n => {
+        const cfg = STRESS_LEVEL_CONFIG[n.stress_level] || STRESS_LEVEL_CONFIG.low;
+        const indicators = [];
+        if (n.late_night_count > 0) indicators.push(`深夜補寫 ${n.late_night_count} 次`);
+        if (n.work_days >= 5) indicators.push(`連續 ${n.work_days} 天工作`);
+
+        return `
+        <div class="stress-card" style="border-left:4px solid ${cfg.border};background:${cfg.bg}">
+            <div class="stress-card-header">
+                <span class="stress-nurse-name">${cfg.icon} ${n.nurse_name}</span>
+                <span class="stress-level-badge" style="color:${cfg.color};border-color:${cfg.border}">${cfg.label}</span>
+            </div>
+            <div class="stress-card-body">
+                <div class="stress-score-bar-wrap">
+                    <div class="stress-score-bar" style="width:${n.stress_score}%;background:${cfg.border}"></div>
+                </div>
+                <div class="stress-meta">
+                    <span>${n.total_records} 筆紀錄</span>
+                    <span>${n.work_days} 工作天</span>
+                    ${n.late_night_count > 0 ? `<span style="color:var(--danger)">深夜補寫 ${n.late_night_count} 次</span>` : ''}
+                </div>
+                ${indicators.length ? `<div class="stress-indicators">${indicators.map(i => `<span class="stress-indicator-tag">${i}</span>`).join('')}</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
 }
