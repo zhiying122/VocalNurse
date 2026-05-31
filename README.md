@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Ollama-Llama_3.2-orange?logo=meta" alt="Ollama">
   <img src="https://img.shields.io/badge/Whisper-本地STT-green?logo=openai" alt="Whisper">
-  <img src="https://img.shields.io/badge/Tests-122_passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-131_passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/SDGs-3·8·9-blue" alt="SDGs">
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
 </p>
@@ -52,11 +52,12 @@ VoiceNursy 以**慈悲為本、科技為用**，把時間還給護理師，讓�
 | 🛡️ 藥物安全防呆 | 35 種藥物資料庫、25 組交互作用、單次/每日劑量檢查、過敏原交叉比對 |
 | 📊 生命徵象監測 | BP / HR / SpO2 / BT / RR 五項警戒值，支援中英文格式輸入 |
 | 👥 共享護理紀錄 | 跨護理師、跨班別、跨裝置共享，所有紀錄即時同步 |
-| 📋 交班儀表板 | 統計摘要、疼痛趨勢圖、給藥時間軸、列印功能 |
+| 📋 SBAR 交班稿 | AI 自動生成符合台灣醫院習慣的 SBAR 格式交班口語稿 |
+| 📝 IRB 知情同意 | 同意書顯示、同意/拒絕/撤回紀錄、建立護理紀錄前自動驗證 |
+| 💙 護理師壓力分析 | 偵測深夜補寫、高密度工作日、連續多日上班等壓力指標，自動產生關懷訊息 |
 | 🔒 安全認證 | JWT Token + PBKDF2-SHA256 600,000 次迭代 + 登入速率限制（5 次/15 分鐘） |
 | 📱 離線支援 | IndexedDB 本地暫存，網路恢復自動同步，斷網照用 |
-| 📝 操作紀錄 | Audit Log 完整記錄所有操作，跨登入階段持久化保存，供安全稽核 |
-| 💝 關懷提醒 | 自動分析病患紀錄，產生有溫度的關懷建議 |
+| 🔍 操作稽核 | Audit Log 完整記錄所有操作，跨登入階段持久化保存，供安全稽核 |
 
 ---
 
@@ -72,12 +73,15 @@ VoiceNursy 以**慈悲為本、科技為用**，把時間還給護理師，讓�
 ├─────────────────────────────────────────────────────────────┤
 │                    🛡️ 安全防呆層                             │
 │  劑量閾值比對 → 過敏原交叉檢查 → 藥物交互作用 → 生命徵象警戒  │
+├─────────────────────────────────────────────────────────────┤
+│                    📋 合規管理層                             │
+│  IRB 知情同意驗證 → Audit Log → 同意書版本比對               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **前端**（`safety-ui/`）：HTML5 / CSS3 / Vanilla JS，零框架依賴，任何瀏覽器直接開啟
 
-**後端**（`brain/`）：Python 3.11+ / FastAPI，非同步高效能 API 伺服器
+**後端**（`brain/`）：Python 3.11+ / FastAPI 0.115，非同步高效能 API 伺服器
 
 ---
 
@@ -138,7 +142,7 @@ cd brain
 uvicorn api:app --reload --port 8001
 ```
 
-看到 `Uvicorn running on http://0.0.0.0:8001` 即啟動成功。
+看到 `Uvicorn running on http://127.0.0.1:8001` 即啟動成功。
 
 ### 步驟五：啟動前端
 
@@ -153,7 +157,7 @@ python -m http.server 3000
 http://localhost:3000
 ```
 
-API 文件：`http://localhost:8001/docs`
+API 互動文件：`http://localhost:8001/docs`
 
 ---
 
@@ -162,11 +166,12 @@ API 文件：`http://localhost:8001/docs`
 ```
 1. 註冊 / 登入
 2. 新增病患（姓名、床號、年齡、診斷、過敏藥物）
-3. 選擇病患 → 點擊 🎙️ 錄音 → 口述護理觀察
-4. 系統自動辨識語音 → 生成 SOAP 護理紀錄
-5. 🛡️ 安全防呆自動檢查（劑量 / 過敏 / 交互作用 / 生命徵象）
-6. 確認存檔 → 紀錄自動共享給所有護理師
-7. 交班時 → 切換到交班儀表板查看摘要
+3. 取得病患知情同意（IRB 同意書）
+4. 選擇病患 → 點擊 🎙️ 錄音 → 口述護理觀察
+5. 系統自動辨識語音 → 生成 SOAP 護理紀錄
+6. 🛡️ 安全防呆自動檢查（劑量 / 過敏 / 交互作用 / 生命徵象）
+7. 確認存檔 → 紀錄自動共享給所有護理師
+8. 交班時 → 切換到交班儀表板，AI 自動生成 SBAR 交班稿
 ```
 
 ---
@@ -179,6 +184,7 @@ API 文件：`http://localhost:8001/docs`
 |------|------|------|
 | `POST` | `/auth/register` | 護理師註冊 |
 | `POST` | `/auth/login` | 登入，回傳 JWT |
+| `POST` | `/auth/refresh` | 刷新 JWT Token |
 
 ### 病患管理
 
@@ -186,6 +192,7 @@ API 文件：`http://localhost:8001/docs`
 |------|------|------|
 | `GET` | `/patients` | 取得所有病患 |
 | `POST` | `/patients` | 新增病患 |
+| `PUT` | `/patients/{id}` | 更新病患資料 |
 | `DELETE` | `/patients/{id}` | 刪除病患 |
 
 ### 語音辨識 & SOAP 生成
@@ -200,10 +207,29 @@ API 文件：`http://localhost:8001/docs`
 
 | 方法 | 端點 | 說明 |
 |------|------|------|
-| `POST` | `/records` | 儲存 SOAP 紀錄 |
+| `POST` | `/records` | 儲存 SOAP 紀錄（需先完成知情同意） |
 | `GET` | `/records/patient/{id}` | 查詢病患紀錄 |
 | `GET` | `/records` | 查詢所有紀錄（支援日期篩選+分頁） |
-| `PUT` | `/records/{id}` | 編輯紀錄 |
+| `PUT` | `/records/{id}` | 編輯紀錄（僅限建立者） |
+| `DELETE` | `/records/{id}` | 刪除紀錄（僅限建立者） |
+
+### IRB 知情同意（需 JWT）
+
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| `GET` | `/consent/patient/{id}` | 查詢病患同意狀態 |
+| `POST` | `/consent/patient/{id}` | 建立同意紀錄（同意/拒絕/撤回） |
+| `GET` | `/consent/patients/status` | 批次查詢所有病患同意狀態 |
+| `GET` | `/consent/audit-log` | 查詢同意稽核日誌（支援篩選） |
+
+### 交班 & 工作分析（需 JWT）
+
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| `POST` | `/sbar/generate` | AI 生成 SBAR 交班口語稿 |
+| `GET` | `/workload` | 護理師工作負荷統計 |
+| `GET` | `/stress/team` | 全體護理師壓力概覽 |
+| `GET` | `/stress/nurse/{id}` | 單一護理師壓力指標分析 |
 
 ---
 
@@ -212,10 +238,11 @@ API 文件：`http://localhost:8001/docs`
 | 措施 | 實作方式 |
 |------|----------|
 | 密碼儲存 | PBKDF2-SHA256，600,000 次迭代（OWASP 2024） |
-| JWT 認證 | HS256 簽章，8 小時有效期 |
+| JWT 認證 | HS256 簽章，8 小時有效期，支援 Token 刷新 |
 | 登入速率限制 | 5 次失敗 / 15 分鐘，超過回傳 HTTP 429 |
 | CORS 限制 | 允許來源從環境變數讀取 |
 | PII 個資遮罩 | 自動偵測並遮罩身分證字號、電話、Email |
+| IRB 知情同意 | 建立護理紀錄前強制驗證同意狀態與版本號 |
 | 全程本地運行 | STT 和 LLM 都在本機執行，病歷資料不出院 |
 | 輸入驗證 | Pydantic Schema 強制型別檢查 |
 
@@ -255,9 +282,10 @@ npx vitest run
 VoiceNursy/
 ├── README.md
 ├── brain/                    # 後端 API（FastAPI）
-│   ├── api.py                #   API 路由
+│   ├── api.py                #   API 路由（認證/病患/紀錄/同意/交班/壓力分析）
 │   ├── auth.py               #   JWT + PBKDF2 認證
 │   ├── brain.py              #   SOAP 生成主邏輯
+│   ├── consent.py            #   IRB 知情同意服務
 │   ├── llm_client.py         #   LLM 客戶端（Ollama/Gemini/OpenAI）
 │   ├── prompts.py            #   SOAP Prompt 模板
 │   ├── schemas.py            #   Pydantic 資料模型
@@ -266,6 +294,7 @@ VoiceNursy/
 │   ├── pii_redactor.py       #   PII 個資遮罩
 │   ├── patients.py           #   病患 CRUD
 │   ├── records.py            #   護理紀錄管理
+│   ├── consent_config.json   #   同意書設定（版本/條款）
 │   ├── drug_safety_db.json   #   藥物安全資料庫（35 種）
 │   └── requirements.txt
 │
@@ -274,6 +303,7 @@ VoiceNursy/
 │   ├── app.js                #   應用主邏輯（含 Audit Log 持久化）
 │   ├── safety_check.js       #   防呆引擎
 │   ├── charts.js             #   Chart.js 視覺化
+│   ├── consent.js            #   IRB 知情同意 UI
 │   ├── offline_sync.js       #   IndexedDB 離線同步
 │   ├── styles.css
 │   ├── drug_safety_db.json
@@ -300,6 +330,7 @@ VoiceNursy/
 | 劑量防呆 | 無劑量檢查 | 35 種藥物即時閾值比對，2 秒內攔截 |
 | 過敏檢查 | 無過敏原交叉檢查 | Penicillin / NSAIDs 交叉過敏自動偵測 |
 | 藥物交互作用 | 需手動詢問 | 25 組危險配對自動比對 |
+| IRB 合規 | 無同意書機制 | 知情同意驗證 + 稽核日誌，符合醫療法規 |
 | 離線使用 | 需要網路 | IndexedDB 離線暫存，斷網照用 |
 | 費用 | ChatGPT Plus $20 USD/月 | 完全免費，本地運行 |
 
@@ -309,8 +340,8 @@ VoiceNursy/
 
 | SDG | 連結說明 |
 |-----|---------|
-| **SDG 3 良好健康與福祉** | 藥物安全防呆即時攔截異常劑量；共享紀錄確保照護連續性 |
-| **SDG 8 良好工作及經濟成長** | 減少護理師 70% 紀錄時間，改善醫療職業環境 |
+| **SDG 3 良好健康與福祉** | 藥物安全防呆即時攔截異常劑量；IRB 知情同意保障病患權益 |
+| **SDG 8 良好工作及經濟成長** | 減少護理師 70% 紀錄時間；壓力分析系統主動關懷護理師身心健康 |
 | **SDG 9 工業、創新及基礎建設** | 語音辨識 + 本地 LLM + 即時防呆引擎創新應用於醫療場域 |
 
 ---

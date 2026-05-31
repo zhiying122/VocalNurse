@@ -14,6 +14,8 @@ brain/users.json
 brain/patients.json
 brain/records.json
 brain/auth_log.json
+brain/consents.json
+brain/consent_audit.json
 
 # 測試框架快取
 .hypothesis/
